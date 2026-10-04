@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.1 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
+// TiebaClean fix v0.8.3 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.2 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.3 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -548,6 +548,39 @@ static void d2myOnce(NSString *k,NSString *msg){
 }
 
 //把"只装着这个子视图"的空壳一路藏掉(最多4层),遇cell/table/表头就停
+static NSString *d2tx2(UIView *v);
+static NSMutableSet *gHid=nil;
+
+static BOOL d2myWlTx(NSString *t){
+ if(!t||t.length<=0){return(NO);}
+ static NSArray *w=nil;
+ if(!w){w=[[NSArray alloc] initWithObjects:@"常用功能",@"辅助功能",@"我的收藏",@"我的点赞",@"浏览历史",@"历史记录",@"装扮中心",@"龙虾",@"我的等级",@"兑换商城",@"成长任务",@"印记中心",@"我的发贴",@"我的回贴",@"关注的吧",@"我的智能体",@"设置形象",@"贴贝",nil];}
+ NSUInteger i=0;
+ for(i=0;i<w.count;i++){
+ if([t rangeOfString:[w objectAtIndex:i]].location!=NSNotFound){return(YES);}
+ }
+ return(NO);
+}
+
+static BOOL d2myWl(UIView *v){
+ if(!v){return(NO);}
+ if(d2myWlTx(d2tx2(v))){return(YES);}
+ NSMutableArray *st=[NSMutableArray arrayWithObject:v];
+ NSInteger g=0;
+ while(st.count>0&&g<400){
+ g++;
+ UIView *x=[st objectAtIndex:0];
+ [st removeObjectAtIndex:0];
+ NSUInteger i=0;
+ for(i=0;i<x.subviews.count;i++){
+ UIView *c=[x.subviews objectAtIndex:i];
+ if(d2myWlTx(d2tx2(c))){return(YES);}
+ [st addObject:c];
+ }
+ }
+ return(NO);
+}
+
 static void d2myCollapse(UIView *v){
  if(!v){return;}
  UIView *top=v;
@@ -570,7 +603,14 @@ static void d2myCollapse(UIView *v){
  p=p.superview;
  d++;
  }
- if(top.hidden!=YES){top.hidden=YES;}
+ if(top.hidden!=YES){
+ if(d2myWl(top)){D2F(@"[MY3] collapse skip-wl cls=%@ h=%.0f",NSStringFromClass([top class]),top.frame.size.height);}
+ else{
+ if(!gHid){gHid=[NSMutableSet set];}
+ [gHid addObject:[NSString stringWithFormat:@"%p",top]];
+ top.hidden=YES;
+ }
+ }
  CGRect f=top.frame;
  if(f.size.height>0.5){f.size.height=0;top.frame=f;}
  d2myOnce([NSString stringWithFormat:@"CL#%@",NSStringFromClass([top class])],
@@ -761,15 +801,12 @@ static NSInteger d2sweepEx(UIView *root,UIView *coord,BOOL doHide,CGFloat *outMi
  CGRect r=[coord convertRect:v.bounds fromView:v];
  if(r.origin.y<my){my=r.origin.y;}
  if(doHide&&v.hidden!=YES){
+ if(d2myWl(v)){D2F(@"[MY3] sweep skip-wl cls=%@ txt=%@",NSStringFromClass([v class]),t);}
+ else{
  v.hidden=YES;
+ if(!gHid){gHid=[NSMutableSet set];}
+ [gHid addObject:[NSString stringWithFormat:@"%p",v]];
  D2F(@"[MY1] sweep hide cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),r.origin.y,r.size.height,t);
- UIView *pp=v.superview;
- if(pp&&pp!=root&&![pp isKindOfClass:[UITableViewCell class]]&&pp.subviews.count<=2){
- CGFloat ph=pp.frame.size.height;
- CGFloat vh=v.frame.size.height;
- if(ph>1.0&&vh>1.0&&ph>=vh*1.15&&ph<vh*4.0&&pp.hidden!=YES){
- pp.hidden=YES;
- D2F(@"[MY2] sweep hide parent cls=%@ h=%.0f",NSStringFromClass([pp class]),ph);
  }
  }
  }
@@ -886,9 +923,54 @@ static void d2scheduleResweeps(UITableView *tv){
  d2mySweepCells(t);
  UIView *h=t.tableHeaderView;
  if(h){[h setNeedsLayout];}
+ d2restorePage(t);
  if(k==1){d2dumpPage(t,@"P1");}
  if(k==3){d2dumpPage(t,@"P3");}
  });
+ }
+}
+
+static void d2restorePage(UITableView *tv){
+ if(!tv){return;}
+ if(!gHid){gHid=[NSMutableSet set];}
+ NSMutableArray *roots=[NSMutableArray array];
+ UIView *h=tv.tableHeaderView;
+ if(h){[roots addObject:h];}
+ NSArray *cs=tv.visibleCells;
+ NSUInteger j=0;
+ for(j=0;j<cs.count;j++){[roots addObject:[cs objectAtIndex:j]];}
+ for(j=0;j<roots.count;j++){
+ UIView *root=[roots objectAtIndex:j];
+ NSMutableArray *st=[NSMutableArray arrayWithObject:root];
+ NSInteger g=0;
+ while(st.count>0&&g<260){
+ g++;
+ UIView *v=[st objectAtIndex:0];
+ [st removeObjectAtIndex:0];
+ if(v.hidden==YES){
+ NSString *cn=[NSStringFromClass([v class]) lowercaseString];
+ BOOL ban=NO;
+ BOOL known=NO;
+ BOOL mine=NO;
+ if([cn rangeOfString:@"vip"].location!=NSNotFound){ban=YES;}
+ if([cn rangeOfString:@"banner"].location!=NSNotFound){ban=YES;}
+ if([cn rangeOfString:@"commerce"].location!=NSNotFound){ban=YES;}
+ if([cn rangeOfString:@"amusement"].location!=NSNotFound){ban=YES;}
+ if([cn rangeOfString:@"namoaixud"].location!=NSNotFound){ban=YES;}
+ if([cn rangeOfString:@"member"].location!=NSNotFound){ban=YES;}
+ if([cn rangeOfString:@"function"].location!=NSNotFound){known=YES;}
+ if([cn rangeOfString:@"tools"].location!=NSNotFound){known=YES;}
+ if([cn rangeOfString:@"options"].location!=NSNotFound){known=YES;}
+ if([cn rangeOfString:@"assist"].location!=NSNotFound){known=YES;}
+ if([gHid containsObject:[NSString stringWithFormat:@"%p",v]]){mine=YES;}
+ if(!ban&&(mine||known)&&d2myWl(v)){
+ v.hidden=NO;
+ D2F(@"[MY3] restore cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),v.frame.origin.y,v.frame.size.height,d2tx2(v));
+ }
+ }
+ NSUInteger i=0;
+ for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
+ }
  }
 }
 
@@ -906,6 +988,7 @@ static CGFloat gHdrCutY=0;
  SEL svb=NSSelectorFromString(@"vipBannerView");
  if([self respondsToSelector:svb]){vb=(UIView *)[self performSelector:svb];}
  if(vb&&vb.hidden!=YES){vb.hidden=YES;}
+ d2restorePage(d2findTV(self));
  UITableView *dpv=d2findTV(self);
  if(![gSeen containsObject:@"SCHED1"]){[gSeen addObject:@"SCHED1"];d2scheduleResweeps(dpv);d2dumpPage(dpv,@"P0");}
  CGFloat full=self.bounds.size.height;
