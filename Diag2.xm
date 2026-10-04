@@ -1,4 +1,4 @@
-// TiebaClean fix v0.7.0 - my-page(会员/度小满/240天SVIP/游戏专区) + launch ad + tab/ad removal
+// TiebaClean fix v0.8.0 - my-page precise removal: commerce/amusement/vip-banner + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -483,5 +483,173 @@ static void d2myStart(void){
  D2F(@"[MYSCAN] start(viewDidAppear)");
  d2myStart();
  }
+}
+%end
+
+// ===== v0.8.0我的页精确移除:度小满卡(含240天SVIP) /游戏专区卡 /会员banner =====
+//取证来源=v0.7.0扫描器真机日志:
+//会员banner: UILabel"成为贴吧会员" -> TBCMyTabVipBannerView < TBCImgView < TBCMyTabHeaderView(表头)
+//度小满卡 : UILabel"度小满钱包" -> ... < TBCMyTabCommerceCell (DXMSDK只是它里面的子视图,所以0.7.0按DXMSDK藏失败)
+//游戏专区 : UILabel"游戏专区" -> TBCMyTabAmusementView < TBCMyTabAmusementCell
+//静态索引(TBClient_tieba_v1):
+// TBCMyTabCellFactory +cellHeightForCellItem:tableView: +fetchMyTabCellClass:
+// TBCMyTabCommerceCell/+TBCMyTabAmusementCell +tableView:rowHeightForObject:
+// TBCMyTabHeaderView -vipBannerView/-setVipBannerView: ; TBCMyTabVipBannerView -bindData:/-setupUI
+//回退方案:不碰 TBCMyTabParsedDataManager(返回nil可能被addObject:炸掉),只压高度+隐藏
+
+@interface TBCMyTabHeaderView : UIView
+- (UIView *)vipBannerView;
+@end
+
+@interface TBCMyTabListViewComponent : UIView
+- (UITableView *)tableView;
+- (UIView *)headerView;
+@end
+
+static BOOL gMyReloaded=NO;
+
+static BOOL d2myBanName(NSString *cn){
+ if(!cn){return(NO);}
+ if([cn rangeOfString:@"Commerce"].location!=NSNotFound){return(YES);}
+ if([cn rangeOfString:@"Amusement"].location!=NSNotFound){return(YES);}
+ return(NO);
+}
+
+static void d2myOnce(NSString *k,NSString *msg){
+ if(!gSeen){gSeen=[NSMutableSet set];}
+ if([gSeen containsObject:k]){return;}
+ [gSeen addObject:k];
+ D2F(@"[MY0] %@",msg);
+}
+
+//把"只装着这个子视图"的空壳一路藏掉(最多4层),遇cell/table/表头就停
+static void d2myCollapse(UIView *v){
+ if(!v){return;}
+ UIView *top=v;
+ UIView *p=v.superview;
+ int d=0;
+ while(p&&d<4){
+ if([p isKindOfClass:[UITableViewCell class]]){break;}
+ NSString *pn=NSStringFromClass([p class]);
+ if([pn hasPrefix:@"UITableView"]||[pn isEqualToString:@"TBCMyTabHeaderView"]){break;}
+ BOOL other=NO;
+ NSUInteger i=0;
+ for(i=0;i<p.subviews.count;i++){
+ UIView *sv=[p.subviews objectAtIndex:i];
+ if(sv==top){continue;}
+ if(sv.hidden){continue;}
+ if(sv.frame.size.height>1){other=YES;break;}
+ }
+ if(other){break;}
+ top=p;
+ p=p.superview;
+ d++;
+ }
+ if(top.hidden!=YES){top.hidden=YES;}
+ CGRect f=top.frame;
+ if(f.size.height>0.5){f.size.height=0;top.frame=f;}
+ d2myOnce([NSString stringWithFormat:@"CL#%@",NSStringFromClass([top class])],
+ [NSString stringWithFormat:@"collapse %@ h=%.0f ->0 (leaf=%@)",NSStringFromClass([top class]),f.size.height,NSStringFromClass([v class])]);
+}
+
+static int d2myCount(UIView *v,int dep){
+ if(!v){return(0);}
+ if(dep>16){return(0);}
+ int c=0;
+ NSString *cn=NSStringFromClass([v class]);
+ NSString *tx=d2txt(v);
+ if((d2kw(cn)||d2kw(tx))&&v.hidden!=YES){c++;}
+ NSUInteger i=0;
+ for(i=0;i<v.subviews.count;i++){c+=d2myCount([v.subviews objectAtIndex:i],dep+1);}
+ return(c);
+}
+
+static void d2myPagePass(UIView *tvc){
+ if(!tvc){return;}
+ UITableView *tv=nil;
+ @try{if([tvc isKindOfClass:[UITableView class]]){tv=(UITableView *)tvc;}}@catch(NSException *e){}
+ if(!tv){return;}
+ NSMutableArray *hit=[NSMutableArray array];
+ NSUInteger i=0;
+ for(i=0;i<tv.subviews.count;i++){
+ UIView *sv=[tv.subviews objectAtIndex:i];
+ if(d2myBanName(NSStringFromClass([sv class]))){[hit addObject:sv];}
+ }
+ for(i=0;i<hit.count;i++){d2myCollapse([hit objectAtIndex:i]);}
+ UIView *hdr=tv.tableHeaderView;
+ D2F(@"[MY0] pass cells=%d banned=%d tvH=%.0f hdr=%@ hdrH=%.0f",
+ (int)tv.subviews.count,(int)hit.count,tv.frame.size.height,NSStringFromClass([hdr class]),hdr?hdr.frame.size.height:0.0);
+ if(hit.count>0&&!gMyReloaded){
+ gMyReloaded=YES;
+ d2myOnce(@"RELOAD1",@"banned cell seen -> reloadData once (重算行高)");
+ dispatch_async(dispatch_get_main_queue(),^{ [tv reloadData]; });
+ }
+}
+
+%hook TBCMyTabCellFactory
++ (double)cellHeightForCellItem:(id)item tableView:(id)tv {
+ NSString *cn=item?NSStringFromClass([item class]):@"nil";
+ if(d2myBanName(cn)){
+ d2myOnce([NSString stringWithFormat:@"FH#%@",cn],
+ [NSString stringWithFormat:@"factory cellHeight ->0 item=%@",cn]);
+ return(0.0);
+ }
+ return %orig;
+}
+%end
+
+%hook TBCMyTabCommerceCell
++ (double)tableView:(id)tv rowHeightForObject:(id)o {
+ d2myOnce(@"RH#commerce",@"commerce +tableView:rowHeightForObject: ->0");
+ return(0.0);
+}
+- (void)setupUI {
+ %orig;
+ d2myOnce(@"UI#commerce",@"commerce cell hidden");
+ self.hidden=YES;
+ d2myCollapse(self);
+}
+%end
+
+%hook TBCMyTabAmusementCell
++ (double)tableView:(id)tv rowHeightForObject:(id)o {
+ d2myOnce(@"RH#amuse",@"amusement +tableView:rowHeightForObject: ->0");
+ return(0.0);
+}
+- (void)setupUI {
+ %orig;
+ d2myOnce(@"UI#amuse",@"amusement cell hidden");
+ self.hidden=YES;
+ d2myCollapse(self);
+}
+%end
+
+%hook TBCMyTabVipBannerView
+- (void)bindData:(id)d {
+ d2myOnce(@"BD#vipbanner",@"vipBanner bindData skipped(不绑会员卡数据)");
+}
+- (void)setupUI {
+ %orig;
+ d2myOnce(@"UI#vipbanner",@"vipBanner setupUI -> hide+collapse");
+ self.hidden=YES;
+ d2myCollapse(self);
+}
+%end
+
+%hook TBCMyTabHeaderView
+- (void)setVipBannerView:(id)v {
+ %orig(v);
+ if(v){d2myCollapse(v);}
+}
+%end
+
+%hook TBCMyTabListViewComponent
+- (void)prepareForDisplay {
+ %orig;
+ d2myPagePass([self tableView]);
+}
+- (void)tableViewReloadData:(id)a {
+ %orig;
+ d2myPagePass([self tableView]);
 }
 %end
