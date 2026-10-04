@@ -329,7 +329,7 @@ for(k=0;k<[v.subviews count];k++){[q addObject:[v.subviews objectAtIndex:k]];[d 
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.10 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.11 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
  if(!D2Off()){D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];}
@@ -808,6 +808,28 @@ static void d2myPagePass(UIView *tvc){
  %orig;
  d2myOnce(@"UI#amuse",@"amusement cell hidden");
  self.hidden=YES;
+ d2myCollapse(self);
+}
+%end
+
+%hook TBCMyTabCarouselBannerCell
++ (double)tableView:(id)tv rowHeightForObject:(id)o {
+ d2myOnce(@"RH#carousel",@"carouselBanner +tableView:rowHeightForObject: ->0");
+ return(0.0);
+}
+- (void)layoutSubviews {
+ %orig;
+ d2myOnce(@"UI#carousel",@"carouselBanner cell hidden+collapse");
+ self.hidden=YES;
+ d2myCollapse(self);
+}
+%end
+
+%hook TBCMyTabCarouselBannerView
+- (void)layoutSubviews {
+ %orig;
+ self.hidden=YES;
+ self.alpha=0.0;
  d2myCollapse(self);
 }
 %end
