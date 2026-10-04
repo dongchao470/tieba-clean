@@ -309,13 +309,30 @@ static void D2Verify(NSString *tag) {
 - (BOOL)isHaveBearAd { D2F(@"[AD] isHaveBearAd -> NO"); return NO; }
 %end
 
+static BOOL D2Off(void){ return [[NSFileManager defaultManager] fileExistsAtPath:@"/var/mobile/Library/Preferences/com.xiaomo.tiebaclean.off"]; }
+static void d2geo(UIView *root,NSString *tag,int maxn){
+int i=0;
+NSMutableArray *q=[NSMutableArray arrayWithObject:root];
+NSMutableArray *d=[NSMutableArray arrayWithObject:@0];
+while(q.count>0&&i<maxn){
+UIView *v=[q objectAtIndex:0];
+int lv=[[d objectAtIndex:0] intValue];
+[q removeObjectAtIndex:0];
+[d removeObjectAtIndex:0];
+CGRect ab=[v convertRect:v.bounds toView:nil];
+D2F(@"[GEO] %@ d=%d cls=%@ x=%.0f y=%.0f w=%.0f h=%.0f hd=%d al=%.2f clip=%d n=%d",tag,lv,NSStringFromClass([v class]),ab.origin.x,ab.origin.y,ab.size.width,ab.size.height,(int)v.hidden,(double)v.alpha,(int)v.clipsToBounds,(int)[v.subviews count]);
+i++;
+NSUInteger k=0;
+for(k=0;k<[v.subviews count];k++){[q addObject:[v.subviews objectAtIndex:k]];[d addObject:[NSNumber numberWithInt:lv+1]];}
+}
+}
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.8 pid=%d path=%@########", getpid(), gPath);
- D2Runner2 *r = [D2Runner2 new];
+ D2F(@"######## TiebaClean fix v0.8.9 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
+ if(!D2Off()){D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
- [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
+ [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];}
  }
 }
 
@@ -1041,6 +1058,7 @@ UIView *p=w.superview;NSInteger u=0;
 while(p&&p!=c&&u<10){u++;if(p.hidden){p.hidden=NO;hid++;res++;}if(p.alpha<0.01){p.alpha=1.0;a0++;res++;}p=p.superview;}
 }
 D2F(@"[MY6] card cls=%@ y=%.0f h=%.0f hd=%d hid=%d alpha0=%d tiles=%d rescued=%d",NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden,(int)hid,(int)a0,(int)ti,(int)res);
+if([NSStringFromClass([c class]) rangeOfString:@"CommonFunction"].location!=NSNotFound){d2geo(c,@"card",46);}
 }
 }
 
@@ -1119,7 +1137,8 @@ static CGFloat gHdrCutY=0;
  %orig;
  @try{
  CGFloat my=0;
- NSInteger n=d2sweepEx(self,self,YES,&my);
+ if(D2Off()){return;}
+NSInteger n=d2sweepEx(self,self,YES,&my);
  if(n>0){D2F(@"[MY1] hdr text sweep n=%d minY=%.0f",(int)n,my);}
  d2myInv(self);
  UIView *vb=nil;
@@ -1130,26 +1149,38 @@ static CGFloat gHdrCutY=0;
  UITableView *dpv=d2findTV(self);
  if(![gSeen containsObject:@"SCHED1"]){[gSeen addObject:@"SCHED1"];d2scheduleResweeps(dpv);d2dumpPage(dpv,@"P0");}
  CGFloat full=self.bounds.size.height;
- if(full<60){return;}
- CGFloat cut=full;
- if(vb&&vb.superview){
- CGRect r=[self convertRect:vb.bounds fromView:vb];
- if(r.size.height>=8&&r.origin.y>full*0.35&&r.origin.y<full-4){if(r.origin.y<cut){cut=r.origin.y;}}
- }
- if(my<1e8&&my>full*0.35&&my<full-4){if(my<cut){cut=my;}}
- if(cut<full-4){gHdrCutY=cut;}
- if(gHdrCutY<60){gHdrCutY=full-136;}
- CGFloat want=(gHdrCutY>59)?gHdrCutY:full;
- if(want<140&&full>=150){want=140;}
- if(want>full){want=full;}
- if(fabs(full-want)>1.0){
- CGRect f=self.frame;
- f.size.height=want;
- self.frame=f;
- UITableView *tv=d2findTV(self);
- if(tv&&tv.tableHeaderView==self){[tv setTableHeaderView:self];}
- D2F(@"[MY1] header cut %.0f -> %.0f",full,want);
- }
+if(full<60){return;}
+if(![gSeen containsObject:@"HDRGEO"]){[gSeen addObject:@"HDRGEO"];d2geo(self,@"hdr",12);}
+CGFloat nb=0;
+if(vb&&vb.superview){
+CGRect br=[self convertRect:vb.bounds fromView:vb];
+CGFloat bh=br.size.height;
+if(bh>=8&&bh<=full*0.55&&br.origin.y>full*0.25&&br.origin.y<full-2){
+nb=bh;
+NSInteger mv=0;
+NSUInteger si=0;
+for(si=0;si<self.subviews.count;si++){
+UIView *sv=[self.subviews objectAtIndex:si];
+if(sv==vb){continue;}
+CGRect sf=sv.frame;
+if(sf.origin.y>=br.origin.y+nb-1.0){sf.origin.y-=nb;sv.frame=sf;mv++;}
+}
+D2F(@"[HDR] reflow banner y=%.0f h=%.0f moved=%d",br.origin.y,bh,(int)mv);
+}
+}
+CGFloat want=full-nb;
+if(want<120&&full>=150){want=120;}
+if(want>full){want=full;}
+if(fabs(full-want)>1.0){
+CGRect f=self.frame;
+f.size.height=want;
+self.frame=f;
+UITableView *tv=d2findTV(self);
+if(tv&&tv.tableHeaderView==self){[tv setTableHeaderView:self];}
+D2F(@"[HDR] header %.0f -> %.0f",full,want);
+}else{
+D2F(@"[HDR] keep native full=%.0f",full);
+}
  }@catch(NSException *e){
  D2F(@"[MY1] hdr ex %@",e.name);
  }
