@@ -329,7 +329,7 @@ for(k=0;k<[v.subviews count];k++){[q addObject:[v.subviews objectAtIndex:k]];[d 
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.11 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.12 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
  if(!D2Off()){D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];}
@@ -786,6 +786,8 @@ static void d2myPagePass(UIView *tvc){
 }
 %end
 
+static void d2mxHide(UIView *v,int d){ if(!v){return;} v.hidden=YES; v.alpha=0.0; if(d>8){return;} for(UIView *s in v.subviews){ d2mxHide(s,d+1); } }
+
 %hook TBCMyTabCommerceCell
 + (double)tableView:(id)tv rowHeightForObject:(id)o {
  d2myOnce(@"RH#commerce",@"commerce +tableView:rowHeightForObject: ->0");
@@ -796,6 +798,11 @@ static void d2myPagePass(UIView *tvc){
  d2myOnce(@"UI#commerce",@"commerce cell hidden");
  self.hidden=YES;
  d2myCollapse(self);
+}
+- (void)layoutSubviews {
+ %orig;
+ d2mxHide((UIView *)self,0);
+ d2myOnce(@"LX#commerce",@"commerce deep hide");
 }
 %end
 
@@ -810,6 +817,19 @@ static void d2myPagePass(UIView *tvc){
  self.hidden=YES;
  d2myCollapse(self);
 }
+- (void)layoutSubviews {
+ %orig;
+ d2mxHide((UIView *)self,0);
+ d2myOnce(@"LX#amuse",@"amusement deep hide");
+}
+%end
+
+%hook TBCMyTabAmusementView
+- (void)layoutSubviews {
+ %orig;
+ d2mxHide((UIView *)self,0);
+ d2myOnce(@"LX#amuseview",@"amusement view deep hide");
+}
 %end
 
 %hook TBCMyTabCarouselBannerCell
@@ -822,6 +842,7 @@ static void d2myPagePass(UIView *tvc){
  UIView *cv=(UIView *)self;
  cv.hidden=YES;
  d2myCollapse(cv);
+ d2mxHide(cv,0);
  d2myOnce(@"UI#carousel",@"carouselBanner cell hidden+collapse");
 }
 %end
@@ -832,6 +853,7 @@ static void d2myPagePass(UIView *tvc){
  UIView *bv=(UIView *)self;
  bv.hidden=YES;
  bv.alpha=0.0;
+ d2mxHide(bv,0);
  d2myCollapse(bv);
 }
 %end
