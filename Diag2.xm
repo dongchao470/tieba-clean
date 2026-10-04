@@ -1,4 +1,4 @@
-// TiebaClean fix v0.5.0 - TBCSegmentView tab removal + ad row collapse
+// TiebaClean fix v0.6.0 - launch ad removal + TBCSegmentView tab removal + ad row collapse
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -311,9 +311,62 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.5.0 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.6.0 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
  }
 }
+
+// ===== v0.6.0: launch(splash) ad removal =====
+//依据静态索引: TBClientAppDelegate -shouldShowLaunchAd B16@0:8 / launchAdVc @16@0:8
+// TBCLaunchADViewController: startShowAdvertisingIfNeed v16@0:8 / startShowADWithAdType: v24@0:8q16
+// dismissADWithAnimation: v20@0:8B16
+
+@interface TBCLaunchADViewController : UIViewController
+- (void)startShowAdvertisingIfNeed;
+- (void)startShowADWithAdType:(long long)t;
+- (void)dismissADWithAnimation:(BOOL)a;
+- (void)splashWillAppear;
+- (void)splashDidAppear;
+@end
+
+%hook TBClientAppDelegate
+- (BOOL)shouldShowLaunchAd {
+ BOOL o = %orig;
+ D2F(@"[LGATE] shouldShowLaunchAd orig=%d -> NO", (int)o);
+ return NO;
+}
+%end
+
+%hook TBCLaunchADViewController
+- (void)viewDidLoad {
+ D2F(@"[LHIT] LaunchADVC viewDidLoad (vc created)");
+ %orig;
+}
+- (void)startShowAdvertisingIfNeed {
+ D2F(@"[LHIT] startShowAdvertisingIfNeed");
+ %orig;
+}
+- (void)startShowADWithAdType:(long long)t {
+ D2F(@"[LHIT] startShowADWithAdType=%lld", t);
+ %orig;
+}
+- (void)splashWillAppear {
+ D2F(@"[LHIT] splashWillAppear");
+ %orig;
+}
+- (void)splashDidAppear {
+ D2F(@"[LHIT] splashDidAppear");
+ %orig;
+}
+- (void)viewDidAppear:(BOOL)a {
+ %orig;
+ BOOL onWin = (self.view.window != nil);
+ D2F(@"[LHIT] adVC viewDidAppear window=%d", (int)onWin);
+ if (onWin) {
+ D2F(@"[LFAST] dismiss launch ad now");
+ [self dismissADWithAnimation:NO];
+ }
+}
+%end
