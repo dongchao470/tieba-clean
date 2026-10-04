@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.0 - my-page precise removal: commerce/amusement/vip-banner + launch ad + tab/ad removal
+// TiebaClean fix v0.8.1 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -524,8 +524,13 @@ static BOOL gMyReloaded=NO;
 
 static BOOL d2myBanName(NSString *cn){
  if(!cn){return(NO);}
- if([cn rangeOfString:@"Commerce"].location!=NSNotFound){return(YES);}
- if([cn rangeOfString:@"Amusement"].location!=NSNotFound){return(YES);}
+ //v0.8.1扩容: Namoaixud=度小满反写(34个方法的整卡item) / Banner / Vip / Svip / Member
+ NSString *lc=[cn lowercaseString];
+ NSArray *w=@[@"commerce",@"amusement",@"namoaixud",@"banner",@"svip",@"member",@"vip"];
+ NSUInteger i=0;
+ for(i=0;i<w.count;i++){
+ if([lc rangeOfString:[w objectAtIndex:i]].location!=NSNotFound){return(YES);}
+ }
  return(NO);
 }
 
@@ -578,6 +583,8 @@ static int d2myCount(UIView *v,int dep){
  return(c);
 }
 
+static void d2mySweepCells(UITableView *tv);
+static void d2myInv(UIView *hdr);
 static void d2myPagePass(UIView *tvc){
  if(!tvc){return;}
  UITableView *tv=nil;
@@ -591,7 +598,9 @@ static void d2myPagePass(UIView *tvc){
  }
  for(i=0;i<hit.count;i++){d2myCollapse([hit objectAtIndex:i]);}
  UIView *hdr=tv.tableHeaderView;
- D2F(@"[MY0] pass cells=%d banned=%d tvH=%.0f hdr=%@ hdrH=%.0f",
+ d2mySweepCells(tv);
+ d2myInv(hdr);
+ D2F(@"[MY1] pass cells=%d banned=%d tvH=%.0f hdr=%@ hdrH=%.0f",
  (int)tv.subviews.count,(int)hit.count,tv.frame.size.height,NSStringFromClass([hdr class]),hdr?hdr.frame.size.height:0.0);
  if(hit.count>0&&!gMyReloaded){
  gMyReloaded=YES;
@@ -602,12 +611,21 @@ static void d2myPagePass(UIView *tvc){
 
 %hook TBCMyTabCellFactory
 + (double)cellHeightForCellItem:(id)item tableView:(id)tv {
- NSString *cn=item?NSStringFromClass([item class]):@"nil";
- if(d2myBanName(cn)){
- d2myOnce([NSString stringWithFormat:@"FH#%@",cn],
- [NSString stringWithFormat:@"factory cellHeight ->0 item=%@",cn]);
+ NSString *ic=item?NSStringFromClass([item class]):@"nil";
+ NSString *ccn=@"?";
+ @try{
+ Class cc=(Class)[self fetchMyTabCellClass:item];
+ if(cc){ccn=NSStringFromClass(cc);}
+ }@catch(NSException *e){}
+ BOOL ban=d2myBanName(ic);
+ if(!ban&&![ccn isEqualToString:@"?"]){ban=d2myBanName(ccn);}
+ if(ban){
+ d2myOnce([NSString stringWithFormat:@"FH1#%@#%@",ic,ccn],
+ [NSString stringWithFormat:@"factory BAN item=%@ cell=%@ ->0",ic,ccn]);
  return(0.0);
  }
+ d2myOnce([NSString stringWithFormat:@"FI1#%@#%@",ic,ccn],
+ [NSString stringWithFormat:@"factory item=%@ cell=%@",ic,ccn]);
  return %orig;
 }
 %end
@@ -644,16 +662,15 @@ static void d2myPagePass(UIView *tvc){
 }
 - (void)setupUI {
  %orig;
- d2myOnce(@"UI#vipbanner",@"vipBanner setupUI -> hide+collapse");
+ d2myOnce(@"UI#vipbanner",@"vipBanner setupUI -> hide only(保留占位,表头按实测y剪高)");
  self.hidden=YES;
- d2myCollapse(self);
 }
 %end
 
 %hook TBCMyTabHeaderView
 - (void)setVipBannerView:(id)v {
  %orig(v);
- if(v){d2myCollapse(v);}
+ if(v&&[v isKindOfClass:[UIView class]]){((UIView *)v).hidden=YES;}
 }
 %end
 
@@ -665,5 +682,158 @@ static void d2myPagePass(UIView *tvc){
 - (void)tableViewReloadData:(id)a {
  %orig;
  d2myPagePass([self tableView]);
+}
+%end
+
+
+// ===== v0.8.1文本兜底清扫 +表头剪高 =====
+//证据:0.8.0日志 hdrH=318恒定(只藏banner不缩表头 => "开通会员"留空位)
+//日志里 SVIP计数=0 => "免费送240天贴吧SVIP"不是UILabel(自绘/富文本),扫描器抓不到
+//手段:关键词清扫隐藏命中视图 +用vipBannerView实测y把表头高度剪到它上面
+static NSArray *d2badWords(void){
+ static NSArray *a=nil;
+ if(!a){
+ a=@[@"免费送",@"240天",@"SVIP",@"sVIP",@"度小满",@"立即获得",@"立即开通",@"新客专享",@"低息借款",@"现金红包",@"大额",@"成为贴吧会员",@"开通会员",@"会员卡",@"游戏专区"];
+ }
+ return(a);
+}
+
+static NSString *d2tx2(UIView *v){
+ if(!v){return(@"");}
+ @try{
+ if([v isKindOfClass:[UILabel class]]){return(((UILabel *)v).text?((UILabel *)v).text:@"");}
+ if([v isKindOfClass:[UIButton class]]){
+ NSString *t=[(UIButton *)v titleForState:UIControlStateNormal];
+ if(t.length>0){return(t);}
+ }
+ SEL s1=NSSelectorFromString(@"text");
+ if([v respondsToSelector:s1]){
+ id t=[v performSelector:s1];
+ if([t isKindOfClass:[NSString class]]&&[(NSString *)t length]>0){return((NSString *)t);}
+ }
+ SEL s2=NSSelectorFromString(@"attributedText");
+ if([v respondsToSelector:s2]){
+ id t=[v performSelector:s2];
+ if([t isKindOfClass:[NSAttributedString class]]&&[((NSAttributedString *)t) string].length>0){return([((NSAttributedString *)t) string]);}
+ }
+ }@catch(NSException *e){}
+ return(@"");
+}
+
+static BOOL d2badTx(NSString *t){
+ if(!t||t.length<1){return(NO);}
+ NSArray *w=d2badWords();
+ NSUInteger i=0;
+ for(i=0;i<w.count;i++){
+ if([t rangeOfString:[w objectAtIndex:i]].location!=NSNotFound){return(YES);}
+ }
+ return(NO);
+}
+
+//清扫子树文本:命中即隐藏;用coord换算记录命中的最小y(表头剪高用)
+static NSInteger d2sweepEx(UIView *root,UIView *coord,BOOL doHide,CGFloat *outMinY){
+ NSInteger n=0;
+ CGFloat my=1e9;
+ if(!root||!coord){return(0);}
+ NSMutableArray *st=[NSMutableArray arrayWithObject:root];
+ NSInteger g=0;
+ while(st.count>0&&g<3000){
+ g++;
+ UIView *v=[st lastObject];
+ [st removeLastObject];
+ NSString *t=d2tx2(v);
+ if(t.length>0&&d2badTx(t)){
+ n++;
+ CGRect r=[coord convertRect:v.bounds fromView:v];
+ if(r.origin.y<my){my=r.origin.y;}
+ if(doHide&&v.hidden!=YES){
+ v.hidden=YES;
+ D2F(@"[MY1] sweep hide cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),r.origin.y,r.size.height,t);
+ }
+ }
+ NSUInteger i=0;
+ for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
+ }
+ if(outMinY){*outMinY=my;}
+ return(n);
+}
+
+static UITableView *d2findTV(UIView *v){
+ UIView *c=v;
+ NSInteger g=0;
+ while(c&&g<20){
+ if([c isKindOfClass:[UITableView class]]){return((UITableView *)c);}
+ c=[c superview];
+ g++;
+ }
+ return(nil);
+}
+
+static void d2myInv(UIView *hdr){
+ if(!hdr){return;}
+ if(!gSeen){gSeen=[NSMutableSet set];}
+ if([gSeen containsObject:@"HDRINV1"]){return;}
+ [gSeen addObject:@"HDRINV1"];
+ NSUInteger i=0;
+ D2F(@"[MY1] hdr cls=%@ h=%.0f sub=%d",NSStringFromClass([hdr class]),hdr.frame.size.height,(int)hdr.subviews.count);
+ for(i=0;i<hdr.subviews.count;i++){
+ UIView *sv=[hdr.subviews objectAtIndex:i];
+ D2F(@"[MY1] hdr sub cls=%@ y=%.0f h=%.0f hd=%d txt=%@",NSStringFromClass([sv class]),sv.frame.origin.y,sv.frame.size.height,(int)sv.hidden,d2tx2(sv));
+ }
+}
+
+static void d2mySweepCells(UITableView *tv){
+ if(!tv){return;}
+ NSUInteger i=0;
+ for(i=0;i<tv.subviews.count;i++){
+ UIView *sv=[tv.subviews objectAtIndex:i];
+ if(![sv isKindOfClass:[UITableViewCell class]]){continue;}
+ CGFloat my=0;
+ NSInteger n=d2sweepEx(sv,tv,YES,&my);
+ if(n>0){
+ d2myOnce([NSString stringWithFormat:@"SW#%@",NSStringFromClass([sv class])],
+ [NSString stringWithFormat:@"cell文本命中 cls=%@ n=%d y=%.0f (已隐藏,待按item归零)",NSStringFromClass([sv class]),(int)n,sv.frame.origin.y]);
+ sv.hidden=YES;
+ }
+ }
+}
+
+static CGFloat gHdrCutY=0;
+
+%hook TBCMyTabHeaderView
+- (void)layoutSubviews {
+ %orig;
+ @try{
+ CGFloat my=0;
+ NSInteger n=d2sweepEx(self,self,YES,&my);
+ if(n>0){D2F(@"[MY1] hdr text sweep n=%d minY=%.0f",(int)n,my);}
+ d2myInv(self);
+ UIView *vb=nil;
+ SEL svb=NSSelectorFromString(@"vipBannerView");
+ if([self respondsToSelector:svb]){vb=(UIView *)[self performSelector:svb];}
+ if(vb&&vb.hidden!=YES){vb.hidden=YES;}
+ CGFloat full=self.bounds.size.height;
+ if(full<60){return;}
+ CGFloat cut=full;
+ if(vb&&vb.superview){
+ CGRect r=[self convertRect:vb.bounds fromView:vb];
+ if(r.size.height>=8&&r.origin.y>full*0.35&&r.origin.y<full-4){if(r.origin.y<cut){cut=r.origin.y;}}
+ }
+ if(my<1e8&&my>full*0.35&&my<full-4){if(my<cut){cut=my;}}
+ if(cut<full-4){gHdrCutY=cut;}
+ CGFloat want=(gHdrCutY>59)?gHdrCutY:full;
+ if(want<60){want=60;}
+ if(want>full){want=full;}
+ if(fabs(full-want)>1.0){
+ CGRect f=self.frame;
+ f.size.height=want;
+ self.frame=f;
+ UITableView *tv=d2findTV(self);
+ if(tv&&tv.tableHeaderView==self){[tv setTableHeaderView:self];}
+ D2F(@"[MY1] header cut %.0f -> %.0f",full,want);
+ }
+ }@catch(NSException *e){
+ D2F(@"[MY1] hdr ex %@",e.name);
+ }
 }
 %end
