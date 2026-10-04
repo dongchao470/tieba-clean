@@ -1012,7 +1012,7 @@ UIView *c=[cs objectAtIndex:ci];
 NSString *cn=[[NSStringFromClass([c class]) lowercaseString] copy];
 if([cn rangeOfString:@"function"].location==NSNotFound){continue;}
 CGRect r=[tv convertRect:c.bounds fromView:c];
-NSInteger hid=0;NSInteger res=0;NSInteger dl=0;NSInteger a0=0;NSInteger ti=0;
+NSInteger hid=0;NSInteger res=0;NSInteger a0=0;NSInteger ti=0;
 NSMutableArray *st=[NSMutableArray arrayWithObject:c];
 NSMutableArray *all=[NSMutableArray array];
 NSInteger g=0;
