@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.7 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
+// TiebaClean fix v0.8.8 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.7 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.8 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -1012,18 +1012,35 @@ UIView *c=[cs objectAtIndex:ci];
 NSString *cn=[[NSStringFromClass([c class]) lowercaseString] copy];
 if([cn rangeOfString:@"function"].location==NSNotFound){continue;}
 CGRect r=[tv convertRect:c.bounds fromView:c];
-NSInteger hid=0;NSInteger res=0;NSInteger dl=0;
+NSInteger hid=0;NSInteger res=0;NSInteger dl=0;NSInteger a0=0;NSInteger ti=0;
 NSMutableArray *st=[NSMutableArray arrayWithObject:c];
+NSMutableArray *all=[NSMutableArray array];
 NSInteger g=0;
-while(st.count>0&&g<400){
+while(st.count>0&&g<600){
 g++;
 UIView *w=[st objectAtIndex:0];
 [st removeObjectAtIndex:0];
-if(w.hidden){hid++;res++;if(dl<6){dl++;D2F(@"[MY6] hidx card=%@ i=%d cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([c class]),(int)dl,NSStringFromClass([w class]),[c convertRect:w.bounds fromView:w].origin.y,w.frame.size.height,d2tx3(w));}w.hidden=NO;}
+[all addObject:w];
+if([w isKindOfClass:NSClassFromString(@"TBCMyTabIconLabelView")]){
+ti++;
+CGRect tr=[tv convertRect:w.bounds fromView:w];
+UIView *p1=w.superview;
+UIView *p2=p1?p1.superview:nil;
+UIView *p3=p2?p2.superview:nil;
+D2F(@"[MY6] tile i=%d ax=%.0f ay=%.0f w=%.0f h=%.0f hd=%d al=%.2f | p1=%@ hd=%d al=%.2f p2=%@ hd=%d al=%.2f p3=%@ hd=%d al=%.2f",(int)ti,tr.origin.x,tr.origin.y,tr.size.width,tr.size.height,(int)w.hidden,(double)w.alpha,NSStringFromClass([p1 class]),(int)p1.hidden,(double)p1.alpha,NSStringFromClass([p2 class]),(int)p2.hidden,(double)p2.alpha,NSStringFromClass([p3 class]),(int)p3.hidden,(double)p3.alpha);
+}
 NSUInteger kk=0;
 for(kk=0;kk<w.subviews.count;kk++){[st addObject:[w.subviews objectAtIndex:kk]];}
 }
-D2F(@"[MY6] card cls=%@ y=%.0f h=%.0f hd=%d hiddenDesc=%d rescued=%d",NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden,(int)hid,(int)res);
+NSInteger q=0;
+for(q=0;q<(NSInteger)all.count;q++){
+UIView *w=[all objectAtIndex:q];
+if(w.hidden){w.hidden=NO;hid++;res++;}
+if(w.alpha<0.01){w.alpha=1.0;a0++;res++;}
+UIView *p=w.superview;NSInteger u=0;
+while(p&&p!=c&&u<10){u++;if(p.hidden){p.hidden=NO;hid++;res++;}if(p.alpha<0.01){p.alpha=1.0;a0++;res++;}p=p.superview;}
+}
+D2F(@"[MY6] card cls=%@ y=%.0f h=%.0f hd=%d hid=%d alpha0=%d tiles=%d rescued=%d",NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden,(int)hid,(int)a0,(int)ti,(int)res);
 }
 }
 
