@@ -1,6 +1,6 @@
 Package: com.xiaomo.tiebaclean
 Name: TiebaClean
-Version: 0.4.0
+Version: 0.5.0
 Architecture: iphoneos-arm64e
 Description: Baidu Tieba cleaner: remove Youliao/Live top tabs and commercial ads in feed and post list (roothide / arm64e)
 Maintainer: xiaomo

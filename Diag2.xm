@@ -1,4 +1,4 @@
-// TiebaClean diag v0.4.0 - deep tree + TBC segment hooks + hedged tab filter
+// TiebaClean fix v0.5.0 - TBCSegmentView tab removal + ad row collapse
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -9,13 +9,16 @@ static NSString *gPath = nil;
 static NSMutableString *gBuf = nil;
 static NSLock *gLock = nil;
 static int gLines =0;
-static const int gMaxLines =8000;
+static const int gMaxLines =4000;
+static NSMutableDictionary *gBanIdx = nil;
+static BOOL gReloading = NO;
 
 static void D2Init(void) {
  if (gPath) return;
  gLock = [NSLock new];
  gBuf = [NSMutableString new];
- gPath = [[NSHomeDirectory() stringByAppendingPathComponent:@"Documents"] stringByAppendingPathComponent:@"tieba_diag.log"];
+ gBanIdx = [NSMutableDictionary new];
+ gPath = [[NSHomeDirectory() stringByAppendingPathComponent:@"Documents"] stringByAppendingPathComponent:@"tieba_fix.log"];
  remove([gPath fileSystemRepresentation]);
 }
 
@@ -26,9 +29,6 @@ static void D2W(NSString *s) {
  if (gLines < gMaxLines) {
  [gBuf appendString:s];
  [gBuf appendString:@"\n"];
- gLines++;
- } else if (gLines == gMaxLines) {
- [gBuf appendString:@"[LOG CAPPED]\n"];
  gLines++;
  }
  NSString *out = [gBuf copy];
@@ -75,11 +75,14 @@ static NSString *D2Text(id v) {
 }
 
 static NSString *D2ItemName(id it) {
- NSString *s = D2Str(it, "name");
- if (s) return s;
- s = D2Str(it, "title");
- if (s) return s;
- return D2Str(it, "tabName");
+ static const char *keys[] = {"name", "title", "tabName", "tabTitle", "identityText", "text", "fetchTabName", "segmentName", "tabText", "key", "identityTitle", NULL};
+ int i =0;
+ while (keys[i]) {
+ NSString *s = D2Str(it, keys[i]);
+ if (s.length >0) return s;
+ i++;
+ }
+ return nil;
 }
 
 static BOOL D2Banned(NSString *s) {
@@ -88,7 +91,8 @@ static BOOL D2Banned(NSString *s) {
  if (t.length ==0) return NO;
  if ([t isEqualToString:@"有料"]) return YES;
  if ([t isEqualToString:@"直播"]) return YES;
- return [t isEqualToString:@"有料°"];
+ if ([t isEqualToString:@"有料°"]) return YES;
+ return NO;
 }
 
 static NSString *D2Names(NSArray *a) {
@@ -115,187 +119,201 @@ static NSArray *D2Filter(NSArray *a, NSString *tag) {
  D2F(@"[FILTER %@] before=%lu after=%lu drop=%@", tag, (unsigned long)a.count, (unsigned long)keep.count, [drop componentsJoinedByString:@"+"]);
  return keep;
  }
+ D2F(@"[FILTER %@] no match count=%lu names=%@", tag, (unsigned long)a.count, D2Names(a));
  return a;
 }
 
-static BOOL D2InTabArea(UIView *v) {
- UIView *p = v;
- int n =0;
- while (p && n <24) {
- NSString *cn = NSStringFromClass([p class]);
- if ([cn rangeOfString:@"Choiceness"].location != NSNotFound) return YES;
- if ([cn rangeOfString:@"HomeChange"].location != NSNotFound) return YES;
- if ([cn rangeOfString:@"Segment"].location != NSNotFound) return YES;
- p = [p superview];
- n++;
- }
+static BOOL D2IsAdObject(id o) {
+ if (!o) return NO;
+ NSString *cn = NSStringFromClass([o class]);
+ if ([cn rangeOfString:@"CommercialAd"].location != NSNotFound) return YES;
+ if ([cn rangeOfString:@"AdItem"].location != NSNotFound) return YES;
+ if ([cn rangeOfString:@"BearAd"].location != NSNotFound) return YES;
+ if ([cn rangeOfString:@"Promotion"].location != NSNotFound) return YES;
+ if ([cn rangeOfString:@"DXM"].location != NSNotFound) return YES;
  return NO;
 }
 
-static void D2Dump(UIView *v, int d, NSMutableString *sb) {
- if (!v || d >30) return;
- if (sb.length >120000) return;
- NSString *cn = NSStringFromClass([v class]);
- NSString *t = D2Text(v);
+static NSString *D2CellText(id cell) {
+ NSString *s = D2Str(cell, "fetchTabName");
+ if (s.length >0) return s;
+ UILabel *tl = D2Msg(cell, "textLabel");
+ s = D2Text(tl);
+ if (s.length >0) return s;
+ return nil;
+}
+
+static UICollectionView *D2FindCollection(UIView *v) {
+ UIView *p = v;
+ int i =0;
+ while (p && i <12) {
+ if ([p isKindOfClass:[UICollectionView class]]) return (UICollectionView *)p;
+ p = [p superview];
+ i++;
+ }
+ return nil;
+}
+
+static void D2Relayout(UIView *v) {
+ if (gReloading) return;
+ UICollectionView *cv = D2FindCollection(v);
+ if (!cv) return;
+ gReloading = YES;
+ [cv.collectionViewLayout invalidateLayout];
+ [cv reloadData];
+ gReloading = NO;
+ D2F(@"[RELAYOUT] collection=%@", NSStringFromClass([cv class]));
+}
+
+static void D2DumpTree(UIView *v, int d, NSMutableString *sb) {
+ if (!v || d >8 || sb.length >40000) return;
  NSMutableString *pad = [NSMutableString string];
  for (int i =0; i < d; i++) [pad appendString:@"| "];
- [sb appendFormat:@"%@%@(%.0f,%.0f,%.0f,%.0f)", pad, cn, v.frame.origin.x, v.frame.origin.y, v.frame.size.width, v.frame.size.height];
- if (t.length >0) [sb appendFormat:@" \"%@\"", t];
- if (v.hidden) [sb appendString:@" HIDDEN"];
- if (v.alpha <0.05) [sb appendString:@" ALPHA0"];
- if (v.accessibilityLabel.length >0) [sb appendFormat:@" ax=%@", v.accessibilityLabel];
- [sb appendString:@"\n"];
- for (UIView *s in v.subviews) D2Dump(s, d +1, sb);
-}
-
-static void D2FocusWalk(UIView *v, int d, NSMutableString *sb) {
- if (!v || d >40 || sb.length >120000) return;
- NSString *cn = NSStringFromClass([v class]);
- BOOL hit = NO;
- if ([cn rangeOfString:@"Choiceness"].location != NSNotFound) hit = YES;
- if ([cn rangeOfString:@"HomeChange"].location != NSNotFound) hit = YES;
- if ([cn rangeOfString:@"Segment"].location != NSNotFound) hit = YES;
- if ([cn rangeOfString:@"TabBar"].location != NSNotFound) hit = YES;
- if (hit) {
- [sb appendFormat:@"--FOCUS %@\n", cn];
- D2Dump(v, d, sb);
- }
- for (UIView *s in v.subviews) D2FocusWalk(s, d +1, sb);
-}
-
-static void D2Scan(UIView *v, int d, NSMutableString *sb) {
- if (!v || d >30) return;
+ [sb appendFormat:@"%@%@(%.0f,%.0f,%.0f,%.0f)", pad, NSStringFromClass([v class]), v.frame.origin.x, v.frame.origin.y, v.frame.size.width, v.frame.size.height];
  NSString *t = D2Text(v);
- if (D2Banned(t) && D2InTabArea(v)) {
- [sb appendFormat:@" KILL %@ frame=%.0f,%.0f,%.0f,%.0f text=%@ parent=%@", NSStringFromClass([v class]), v.frame.origin.x, v.frame.origin.y, v.frame.size.width, v.frame.size.height, t, NSStringFromClass([[v superview] class])];
- v.hidden = YES;
- v.alpha =0.0;
- }
- for (UIView *s in v.subviews) D2Scan(s, d +1, sb);
-}
-
-static void D2DumpWindows(NSString *tag) {
- NSArray *ws = [[UIApplication sharedApplication] windows];
- NSMutableString *sb = [NSMutableString string];
- [sb appendFormat:@"===== DUMP %@ windows=%lu =====", tag, (unsigned long)ws.count];
+ if (t.length >0) [sb appendFormat:@" %@", t];
+ if (v.hidden) [sb appendString:@" HIDDEN"];
  [sb appendString:@"\n"];
- for (UIWindow *w in ws) D2Dump(w,0, sb);
- D2W(sb);
+ for (UIView *s in v.subviews) D2DumpTree(s, d +1, sb);
 }
 
-static void D2Focus(void) {
+static void D2VerifyWalk(UIView *v, int d, NSMutableString *sb, int *ads) {
+ if (!v || d >12) return;
+ NSString *cn = NSStringFromClass([v class]);
+ if ([cn rangeOfString:@"CommercialAd"].location != NSNotFound && !v.hidden && v.frame.size.height >1.0) {
+ *ads = *ads +1;
+ }
+ if ([cn isEqualToString:@"TBCChoicenessTypeBHeaderView"]) {
+ [sb appendString:@"--HEADER\n"];
+ D2DumpTree(v,0, sb);
+ }
+ for (UIView *s in v.subviews) D2VerifyWalk(s, d +1, sb, ads);
+}
+
+static void D2Verify(NSString *tag) {
  NSArray *ws = [[UIApplication sharedApplication] windows];
  NSMutableString *sb = [NSMutableString string];
- for (UIWindow *w in ws) D2FocusWalk(w,0, sb);
- if (sb.length >0) D2F(@"===== FOCUS =====\n%@", sb);
+ int ads =0;
+ for (UIWindow *w in ws) D2VerifyWalk(w,0, sb, &ads);
+ D2F(@"===== VERIFY %@ visibleAdCells=%d banIdx=%@ =====", tag, ads, [[gBanIdx allKeys] componentsJoinedByString:@","]);
+ if (sb.length >0) D2W(sb);
 }
 
-static void D2KillScan(void) {
- NSArray *ws = [[UIApplication sharedApplication] windows];
- NSMutableString *sb = [NSMutableString string];
- for (UIWindow *w in ws) D2Scan(w,0, sb);
- if (sb.length >0) D2F(@"[KILLSCAN]\n%@", sb);
-}
-
-@interface D2Runner : NSObject
-- (void)tick1;
-- (void)tick2;
-- (void)tick3;
-- (void)tick4;
-- (void)tick5;
+@interface D2Runner2 : NSObject
+- (void)v1;
+- (void)v2;
 @end
 
-@implementation D2Runner
-- (void)tick1 { D2DumpWindows(@"t3"); D2Focus(); D2KillScan(); }
-- (void)tick2 { D2Focus(); D2KillScan(); }
-- (void)tick3 { D2Focus(); D2KillScan(); }
-- (void)tick4 { D2DumpWindows(@"t16"); D2Focus(); D2KillScan(); }
-- (void)tick5 { D2DumpWindows(@"t28"); D2Focus(); D2KillScan(); }
+@implementation D2Runner2
+- (void)v1 { D2Verify(@"t6"); }
+- (void)v2 { D2Verify(@"t14"); }
 @end
-
-%hook TBCChoicenessTypeBHeaderView
-- (void)setSegmentView:(UIView *)v { D2F(@"[HIT] TypeBHeader setSegmentView class=%@ frame=%.0f,%.0f,%.0f,%.0f", NSStringFromClass([v class]), v.frame.origin.x, v.frame.origin.y, v.frame.size.width, v.frame.size.height); %orig; }
-- (void)setSegmentGradientView:(UIView *)v { D2F(@"[HIT] TypeBHeader setSegmentGradientView class=%@", NSStringFromClass([v class])); %orig; }
-- (void)setRightButtonsContainer:(UIView *)v { D2F(@"[HIT] TypeBHeader setRightButtonsContainer class=%@", NSStringFromClass([v class])); %orig; }
-- (void)setLiveView:(UIView *)v { D2F(@"[HIT] TypeBHeader setLiveView class=%@", NSStringFromClass([v class])); %orig; }
-- (void)layoutSegmentContentView { D2F(@"[HIT] TypeBHeader layoutSegmentContentView"); %orig; }
-- (void)layoutSegmentViewAndRightButtons { D2F(@"[HIT] TypeBHeader layoutSegmentViewAndRightButtons"); %orig; }
-- (void)clickLiveBtn { D2F(@"[HIT] TypeBHeader clickLiveBtn"); %orig; }
-%end
-
-%hook TBCChoicenessHeaderView
-- (void)setSegmentView:(UIView *)v { D2F(@"[HIT] ChoicenessHeader setSegmentView class=%@", NSStringFromClass([v class])); %orig; }
-%end
-
-%hook TBCHomeChangeHeaderView
-- (void)setAdvancedTabName:(NSString *)n { D2F(@"[HIT] HomeChangeHeader setAdvancedTabName=%@", n); %orig; }
-- (void)setTabName:(NSString *)n { D2F(@"[HIT] HomeChangeHeader setTabName=%@", n); %orig; }
-%end
 
 %hook TBCSegmentView
-- (void)setDataSource:(id)o { D2F(@"[HIT] TBCSegmentView setDataSource=%@", NSStringFromClass([o class])); %orig; }
-- (void)setDelegate:(id)o { D2F(@"[HIT] TBCSegmentView setDelegate=%@", NSStringFromClass([o class])); %orig; }
-- (void)setItems:(NSArray *)a { D2F(@"[HIT] TBCSegmentView setItems %@", D2Names(a)); %orig(D2Filter(a, @"TBCSegmentView.setItems")); }
-- (void)setTabItems:(NSArray *)a { D2F(@"[HIT] TBCSegmentView setTabItems %@", D2Names(a)); %orig(D2Filter(a, @"TBCSegmentView.setTabItems")); }
-- (void)setSegmentItems:(NSArray *)a { D2F(@"[HIT] TBCSegmentView setSegmentItems %@", D2Names(a)); %orig(D2Filter(a, @"TBCSegmentView.setSegmentItems")); }
-- (void)setTabs:(NSArray *)a { D2F(@"[HIT] TBCSegmentView setTabs %@", D2Names(a)); %orig(D2Filter(a, @"TBCSegmentView.setTabs")); }
+- (void)setDataSource:(NSArray *)a {
+ D2F(@"[HIT] TBCSegmentView setDataSource count=%lu %@", (unsigned long)a.count, D2Names(a));
+ %orig(D2Filter(a, @"TBCSegmentView.setDataSource"));
+}
+- (void)setItems:(NSArray *)a {
+ D2F(@"[HIT] TBCSegmentView setItems %@", D2Names(a));
+ %orig(D2Filter(a, @"TBCSegmentView.setItems"));
+}
+- (void)setTabs:(NSArray *)a {
+ D2F(@"[HIT] TBCSegmentView setTabs %@", D2Names(a));
+ %orig(D2Filter(a, @"TBCSegmentView.setTabs"));
+}
+- (void)setDelegate:(id)o {
+ D2F(@"[HIT] TBCSegmentView setDelegate=%@", NSStringFromClass([o class]));
+ %orig;
+}
+- (NSInteger)collectionView:(UICollectionView *)cv numberOfItemsInSection:(NSInteger)s {
+ NSInteger n = %orig;
+ D2F(@"[HIT] TBCSegmentView numberOfItems=%ld", (long)n);
+ return n;
+}
+- (CGSize)collectionView:(UICollectionView *)cv layout:(UICollectionViewLayout *)l sizeForItemAtIndexPath:(NSIndexPath *)ip {
+ if (gBanIdx[@(ip.item)] != nil) {
+ D2F(@"[ZERO] sizeForItem idx=%ld", (long)ip.item);
+ return CGSizeMake(0.0,0.0);
+ }
+ return %orig;
+}
+- (CGFloat)cellWidthForItem:(id)item {
+ NSString *n = D2ItemName(item);
+ if (D2Banned(n)) {
+ D2F(@"[ZERO] cellWidthForItem name=%@", n);
+ return(0.0);
+ }
+ return %orig;
+}
 %end
 
-%hook TBCScrollSegmentView
-- (void)setDataSource:(id)o { D2F(@"[HIT] ScrollSegmentView setDataSource=%@", NSStringFromClass([o class])); %orig; }
-- (void)setDelegate:(id)o { D2F(@"[HIT] ScrollSegmentView setDelegate=%@", NSStringFromClass([o class])); %orig; }
-- (void)setItems:(NSArray *)a { D2F(@"[HIT] ScrollSegmentView setItems %@", D2Names(a)); %orig(D2Filter(a, @"ScrollSegmentView.setItems")); }
-- (void)setTabItems:(NSArray *)a { D2F(@"[HIT] ScrollSegmentView setTabItems %@", D2Names(a)); %orig(D2Filter(a, @"ScrollSegmentView.setTabItems")); }
-- (void)setSegmentItems:(NSArray *)a { D2F(@"[HIT] ScrollSegmentView setSegmentItems %@", D2Names(a)); %orig(D2Filter(a, @"ScrollSegmentView.setSegmentItems")); }
-- (void)setTabs:(NSArray *)a { D2F(@"[HIT] ScrollSegmentView setTabs %@", D2Names(a)); %orig(D2Filter(a, @"ScrollSegmentView.setTabs")); }
-%end
+@interface TBCSegmentViewCell : UIView
+- (void)bindData:(id)d;
+- (NSString *)fetchTabName;
+- (NSIndexPath *)indexPath;
+- (UILabel *)textLabel;
+- (void)setTextLabel:(UILabel *)l;
+@end
 
-%hook TBCSegmentTabsView
-- (id)initWithFrame:(CGRect)f tabs:(NSArray *)tabs { D2F(@"[HIT] TabsView init tabs=%@", D2Names(tabs)); return %orig(f, D2Filter(tabs, @"TabsView.init")); }
-- (void)setTabs:(NSArray *)a { D2F(@"[HIT] TabsView setTabs %@", D2Names(a)); %orig(D2Filter(a, @"TabsView.setTabs")); }
-%end
-
-%hook TBCSecondBarSegmentView
-- (id)initWithFrame:(CGRect)f andItems:(NSArray *)items { D2F(@"[HIT] SecondBar init items=%@", D2Names(items)); return %orig(f, D2Filter(items, @"SecondBar.init")); }
-- (void)setSegmentItems:(NSArray *)a { D2F(@"[HIT] SecondBar setSegmentItems %@", D2Names(a)); %orig(D2Filter(a, @"SecondBar.setSegmentItems")); }
-- (void)setSegmentItemsArray:(NSArray *)a { D2F(@"[HIT] SecondBar setSegmentItemsArray %@", D2Names(a)); %orig(D2Filter(a, @"SecondBar.setSegmentItemsArray")); }
+%hook TBCSegmentViewCell
+- (void)bindData:(id)d {
+ %orig;
+ NSString *n = D2CellText(self);
+ if (n.length ==0) return;
+ if (!D2Banned(n)) return;
+ NSIndexPath *ip = D2Msg(self, "indexPath");
+ NSNumber *k = ip ? @(ip.item) : nil;
+ BOOL isNew = (k != nil && gBanIdx[k] == nil);
+ if (k) gBanIdx[k] = @YES;
+ UIView *sv = (UIView *)self;
+ sv.hidden = YES;
+ sv.alpha =0.0;
+ UILabel *tl = D2Msg(self, "textLabel");
+ if ([tl isKindOfClass:[UILabel class]]) tl.text = @"";
+ D2F(@"[BAN] cell=%@ name=%@ idx=%@ isNew=%d", NSStringFromClass([self class]), n, k, (int)isNew);
+ if (isNew) D2Relayout(sv);
+}
 %end
 
 %hook TBCSegmentedControl
-- (void)setItems:(NSArray *)a { D2F(@"[HIT] SegmentedControl setItems %@", D2Names(a)); %orig(D2Filter(a, @"SegmentedControl.setItems")); }
-- (void)setTabs:(NSArray *)a { D2F(@"[HIT] SegmentedControl setTabs %@", D2Names(a)); %orig(D2Filter(a, @"SegmentedControl.setTabs")); }
+- (void)setItems:(NSArray *)a {
+ NSMutableArray *keep = [NSMutableArray array];
+ NSMutableArray *drop = [NSMutableArray array];
+ for (id it in a) {
+ NSString *s = [it isKindOfClass:[NSString class]] ? (NSString *)it : D2ItemName(it);
+ if (D2Banned(s)) [drop addObject:(s ? s : @"?")];
+ else [keep addObject:it];
+ }
+ D2F(@"[HIT] SegmentedControl setItems count=%lu drop=%@", (unsigned long)a.count, [drop componentsJoinedByString:@"+"]);
+ if (drop.count >0) %orig(keep); else %orig;
+}
 %end
 
-%hook TBCSlideSegmentControl
-- (void)setItems:(NSArray *)a { D2F(@"[HIT] SlideSegmentControl setItems %@", D2Names(a)); %orig(D2Filter(a, @"SlideSegmentControl.setItems")); }
+%hook TBCCommercialAdBaseCell
++ (CGFloat)tableView:(id)tv rowHeightForObject:(id)obj {
+ CGFloat h = %orig;
+ BOOL ad = D2IsAdObject(obj);
+ D2F(@"[ADROW] ad=%d h=%.0f obj=%@", (int)ad, h, NSStringFromClass([obj class]));
+ if (ad) return(0.0);
+ return h;
+}
 %end
 
-%hook TBCSegmentedLabelConfig
-- (void)setText:(NSString *)t { D2F(@"[HIT] LabelConfig setText=%@", t); %orig; }
-%end
-
-%hook TBCSegmentedLabel
-- (void)bindData:(id)d { D2F(@"[HIT] SegmentedLabel bindData class=%@ text=%@", NSStringFromClass([d class]), D2Text(d)); %orig; }
-- (void)setText:(NSString *)t { D2F(@"[HIT] SegmentedLabel setText=%@", t); %orig; }
-%end
-
-%hook TBCSegmentTabsItem
-- (void)setName:(NSString *)n { D2F(@"[HIT] TabsItem setName=%@", n); %orig; }
-%end
-
-%hook TBCSegmentTabsCell
-- (void)bindItem:(id)it { D2F(@"[HIT] TabsCell bindItem name=%@", D2ItemName(it)); %orig; }
+%hook TBCPBFirstFloorBannerComponent
+- (BOOL)shouldShowAd { D2F(@"[AD] shouldShowAd -> NO"); return NO; }
+- (BOOL)shouldShowGameAdBannerView { D2F(@"[AD] shouldShowGameAdBannerView -> NO"); return NO; }
+- (BOOL)shouldShowRecommendAdRecreationView { D2F(@"[AD] shouldShowRecommendAdRecreationView -> NO"); return NO; }
+- (BOOL)shouldShowRecommendADXLiveView { D2F(@"[AD] shouldShowRecommendADXLiveView -> NO"); return NO; }
+- (BOOL)isHaveBearAd { D2F(@"[AD] isHaveBearAd -> NO"); return NO; }
 %end
 
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean diag v0.4.0 pid=%d path=%@########", getpid(), gPath);
- D2Runner *r = [D2Runner new];
- [NSTimer scheduledTimerWithTimeInterval:2.0 target:r selector:@selector(tick1) userInfo:nil repeats:NO];
- [NSTimer scheduledTimerWithTimeInterval:5.0 target:r selector:@selector(tick2) userInfo:nil repeats:NO];
- [NSTimer scheduledTimerWithTimeInterval:9.0 target:r selector:@selector(tick3) userInfo:nil repeats:NO];
- [NSTimer scheduledTimerWithTimeInterval:16.0 target:r selector:@selector(tick4) userInfo:nil repeats:NO];
- [NSTimer scheduledTimerWithTimeInterval:28.0 target:r selector:@selector(tick5) userInfo:nil repeats:NO];
+ D2F(@"######## TiebaClean fix v0.5.0 pid=%d path=%@########", getpid(), gPath);
+ D2Runner2 *r = [D2Runner2 new];
+ [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
+ [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
  }
 }
