@@ -1,0 +1,37 @@
+name: Build TiebaClean
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Theos
+        uses: waruhachi/theos-action@v2.6.3
+        with:
+          theos-src: 'waruhachi/theos'
+          theos-branch: 'main'
+          sdks-src: 'waruhachi/sdks'
+          sdks-branch: 'main'
+
+      - name: Build package (roothide)
+        run: |
+          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+          ls -lh packages/ || ls -lh *.deb || true
+
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: TiebaClean-deb
+          path: |
+            packages/*.deb
+            *.deb
+          if-no-files-found: error
