@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.3 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
+// TiebaClean fix v0.8.4 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.3 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.4 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -552,6 +552,68 @@ static NSString *d2tx2(UIView *v);
 static NSMutableSet *gHid=nil;
 static void d2restorePage(UITableView *tv);
 
+static NSMutableSet *gDbg4=nil;
+
+static NSString *d2tx3(UIView *v){
+ if(!v){return(@"");}
+ NSMutableString *o=[NSMutableString string];
+ if([v isKindOfClass:[UILabel class]]){
+ UILabel *l=(UILabel *)v;
+ if(l.text.length>0){[o appendString:l.text];}
+ if(l.attributedText.string.length>0){[o appendString:l.attributedText.string];}
+ }
+ if([v isKindOfClass:[UIButton class]]){
+ UIButton *b=(UIButton *)v;
+ if(b.titleLabel.text.length>0){[o appendString:b.titleLabel.text];}
+ if(b.titleLabel.attributedText.string.length>0){[o appendString:b.titleLabel.attributedText.string];}
+ if(b.accessibilityLabel.length>0){[o appendString:b.accessibilityLabel];}
+ }
+ if([v isKindOfClass:[UITextView class]]){
+ UITextView *tv=(UITextView *)v;
+ if(tv.text.length>0){[o appendString:tv.text];}
+ if(tv.attributedText.string.length>0){[o appendString:tv.attributedText.string];}
+ }
+ if(o.length<=0&&v.accessibilityLabel.length>0){[o appendString:v.accessibilityLabel];}
+ if(o.length<=0&&v.accessibilityValue.length>0){[o appendString:v.accessibilityValue];}
+ if(o.length<=0&&[v isKindOfClass:[UIImageView class]]){
+ UIImage *im=((UIImageView *)v).image;
+ if(im){[o appendFormat:@"img:%@",[im description]];}
+ }
+ return(o);
+}
+
+static BOOL d2myWlCls(UIView *v){
+ if(!v){return(NO);}
+ static NSArray *cw=nil;
+ if(!cw){cw=[[NSArray alloc] initWithObjects:@"tools",@"options",@"common",@"assist",@"function",@"favorite",@"collect",@"history",@"dress",nil];}
+ UIView *x=v;
+ NSInteger g=0;
+ while(x&&g<7){
+ NSString *cn=[[NSStringFromClass([x class]) lowercaseString] copy];
+ NSUInteger i=0;
+ for(i=0;i<cw.count;i++){
+ if([cn rangeOfString:[cw objectAtIndex:i]].location!=NSNotFound){return(YES);}
+ }
+ x=[x superview];
+ g++;
+ }
+ return(NO);
+}
+
+static void d2dbg4(UIView *v,NSString *tag){
+ if(!v||!tag){return;}
+ if(!gDbg4){gDbg4=[NSMutableSet set];}
+ if(gDbg4.count>=28){return;}
+ NSString *k=[NSString stringWithFormat:@"%@|%@|%.0f|%.0f",tag,NSStringFromClass([v class]),v.frame.origin.y,v.frame.size.height];
+ if([gDbg4 containsObject:k]){return;}
+ [gDbg4 addObject:k];
+ UIView *s1=[v superview];
+ NSString *n1=s1?NSStringFromClass([s1 class]):@"-";
+ NSString *n2=(s1&&[s1 superview])?NSStringFromClass([[s1 superview] class]):@"-";
+ NSString *n3=(s1&&[s1 superview]&&[[s1 superview] superview])?NSStringFromClass([[[s1 superview] superview] class]):@"-";
+ D2F(@"[MY4] %@ cls=%@ y=%.0f h=%.0f hd=%d sup=%@ sup2=%@ sup3=%@ wl=%d clswl=%d",tag,NSStringFromClass([v class]),v.frame.origin.y,v.frame.size.height,(int)v.hidden,n1,n2,n3,(int)d2myWl(v),(int)d2myWlCls(v));
+}
+
 static BOOL d2myWlTx(NSString *t){
  if(!t||t.length<=0){return(NO);}
  static NSArray *w=nil;
@@ -565,7 +627,8 @@ static BOOL d2myWlTx(NSString *t){
 
 static BOOL d2myWl(UIView *v){
  if(!v){return(NO);}
- if(d2myWlTx(d2tx2(v))){return(YES);}
+ if(d2myWlTx(d2tx3(v))){return(YES);}
+ if(d2myWlCls(v)){return(YES);}
  NSMutableArray *st=[NSMutableArray arrayWithObject:v];
  NSInteger g=0;
  while(st.count>0&&g<400){
@@ -575,7 +638,8 @@ static BOOL d2myWl(UIView *v){
  NSUInteger i=0;
  for(i=0;i<x.subviews.count;i++){
  UIView *c=[x.subviews objectAtIndex:i];
- if(d2myWlTx(d2tx2(c))){return(YES);}
+ if(d2myWlTx(d2tx3(c))){return(YES);}
+ if(d2myWlCls(c)){return(YES);}
  [st addObject:c];
  }
  }
@@ -811,6 +875,7 @@ static NSInteger d2sweepEx(UIView *root,UIView *coord,BOOL doHide,CGFloat *outMi
  }
  }
  }
+ if([[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"tools"].location!=NSNotFound||[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"options"].location!=NSNotFound){d2dbg4(v,@"tile");}
  NSUInteger i=0;
  for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
  }
@@ -941,6 +1006,7 @@ static void d2restorePage(UITableView *tv){
  for(j=0;j<cs.count;j++){[roots addObject:[cs objectAtIndex:j]];}
  for(j=0;j<roots.count;j++){
  UIView *root=[roots objectAtIndex:j];
+ d2dbg4(root,@"root");
  NSMutableArray *st=[NSMutableArray arrayWithObject:root];
  NSInteger g=0;
  while(st.count>0&&g<260){
@@ -948,6 +1014,7 @@ static void d2restorePage(UITableView *tv){
  UIView *v=[st objectAtIndex:0];
  [st removeObjectAtIndex:0];
  if(v.hidden==YES){
+ d2dbg4(v,@"hid");
  NSString *cn=[NSStringFromClass([v class]) lowercaseString];
  BOOL ban=NO;
  BOOL known=NO;
@@ -963,11 +1030,12 @@ static void d2restorePage(UITableView *tv){
  if([cn rangeOfString:@"options"].location!=NSNotFound){known=YES;}
  if([cn rangeOfString:@"assist"].location!=NSNotFound){known=YES;}
  if([gHid containsObject:[NSString stringWithFormat:@"%p",v]]){mine=YES;}
- if(!ban&&(mine||known)&&d2myWl(v)){
+ if(!ban&&(mine||known||d2myWlCls(v))&&d2myWl(v)){
  v.hidden=NO;
  D2F(@"[MY3] restore cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),v.frame.origin.y,v.frame.size.height,d2tx2(v));
  }
  }
+ if([[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"tools"].location!=NSNotFound||[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"options"].location!=NSNotFound){d2dbg4(v,@"tile");}
  NSUInteger i=0;
  for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
  }
