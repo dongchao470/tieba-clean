@@ -1,4 +1,4 @@
-// TiebaClean fix v0.6.0 - launch ad removal + TBCSegmentView tab removal + ad row collapse
+// TiebaClean fix v0.7.0 - my-page(会员/度小满/240天SVIP/游戏专区) + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -367,6 +367,121 @@ static void D2Verify(NSString *tag) {
  if (onWin) {
  D2F(@"[LFAST] dismiss launch ad now");
  [self dismissADWithAnimation:NO];
+ }
+}
+%end
+
+// ===== v0.7.0我的页(个人中心)清理:会员 /度小满 /240天SVIP /游戏专区 =====
+//静态索引命中: DXMSDKHomePageLendSmallCardView(度小满借钱小卡), TBCSvipPrivilegeView, TBCVipBannerInfo, TBCMemberGuideItem/TBCOpenMemberView
+//我的页分层静态查不到(Person/Profile/Card/Game均无页面骨架类) ->用关键字扫描器抓类名+文本+父链+dataSource类,类名带 DXMSDK的直接藏
+static NSArray *gKw=nil;
+static NSMutableSet *gSeen=nil;
+static BOOL gScanStarted=NO;
+
+static BOOL d2kw(NSString *s){
+ if(!s){return(NO);}
+ if(s.length<1){return(NO);}
+ if(!gKw){gKw=@[@"度小满",@"小满",@"SVIP",@"会员",@"游戏专区",@"游戏大厅",@"钱包"];}
+ NSUInteger i=0;
+ for(i=0;i<gKw.count;i++){
+ NSString *k=[gKw objectAtIndex:i];
+ if([s rangeOfString:k].location!=NSNotFound){return(YES);}
+ }
+ return(NO);
+}
+
+static NSString *d2txt(UIView *v){
+ NSMutableString *m=[NSMutableString string];
+ if([v isKindOfClass:[UILabel class]]){NSString *t=((UILabel *)v).text;if(t.length){[m appendString:t];}}
+ if([v isKindOfClass:[UITextView class]]){NSString *t=((UITextView *)v).text;if(t.length){[m appendString:t];}}
+ if([v isKindOfClass:[UIButton class]]){NSString *t=[((UIButton *)v)titleForState:0];if(t.length){[m appendString:t];}}
+ return(m);
+}
+
+static NSString *d2pth(UIView *v){
+ NSMutableString *m=[NSMutableString string];
+ UIView *p=v;
+ int d=0;
+ while(p&&d<12){
+ NSString *one=[NSString stringWithFormat:@"%@<",NSStringFromClass([p class])];
+ [m insertString:one atIndex:0];
+ p=p.superview;
+ d++;
+ }
+ return(m);
+}
+
+static void d2rpt(NSString *key,NSString *msg){
+ if(!gSeen){gSeen=[NSMutableSet set];}
+ if([gSeen containsObject:key]){return;}
+ [gSeen addObject:key];
+ D2F(@"[MY] %@",msg);
+}
+
+static void d2scan(UIView *v,int dep){
+ if(!v){return;}
+ if(dep>16){return;}
+ NSString *cn=NSStringFromClass([v class]);
+ NSString *tx=d2txt(v);
+ if(d2kw(cn)||d2kw(tx)){
+ d2rpt([NSString stringWithFormat:@"H#%@#%@",cn,tx],
+ [NSString stringWithFormat:@"hit cls=%@ txt=%@ frame=%@ h=%d path=%@",cn,tx,NSStringFromCGRect(v.frame),(int)v.hidden,d2pth(v)]);
+ if([cn hasPrefix:@"DXMSDK"]){
+ if(v.hidden!=YES){
+ v.hidden=YES;
+ D2F(@"[MYHIDE] %@ frame=%@",cn,NSStringFromCGRect(v.frame));
+ }
+ }
+ }
+ if([v isKindOfClass:[UITableView class]]){
+ NSString *ds=NSStringFromClass([((UITableView *)v).dataSource class]);
+ d2rpt([NSString stringWithFormat:@"T#%@#%@",cn,ds],
+ [NSString stringWithFormat:@"tv=%@ ds=%@ frame=%@",cn,ds,NSStringFromCGRect(v.frame)]);
+ }
+ if([v isKindOfClass:[UICollectionView class]]){
+ NSString *ds=NSStringFromClass([((UICollectionView *)v).dataSource class]);
+ d2rpt([NSString stringWithFormat:@"C#%@#%@",cn,ds],
+ [NSString stringWithFormat:@"cv=%@ ds=%@ frame=%@",cn,ds,NSStringFromCGRect(v.frame)]);
+ }
+ NSUInteger i=0;
+ for(i=0;i<v.subviews.count;i++){
+ d2scan([v.subviews objectAtIndex:i],dep+1);
+ }
+}
+
+static void d2myStart(void){
+ __block int n=0;
+ NSTimer *t=[NSTimer scheduledTimerWithTimeInterval:2.0 repeats:YES block:^(NSTimer *tm){
+ n++;
+ NSArray *ws=[[UIApplication sharedApplication] windows];
+ NSUInteger i=0;
+ for(i=0;i<ws.count;i++){
+ d2scan([ws objectAtIndex:i],0);
+ }
+ D2F(@"[MYSCAN] pass=%d windows=%d seen=%d",n,(int)ws.count,(int)gSeen.count);
+ if(n>=30){[tm invalidate];}
+ }];
+ (void)t;
+}
+
+%hook UIWindow
+- (void)makeKeyAndVisible{
+ %orig;
+ if(!gScanStarted){
+ gScanStarted=YES;
+ D2F(@"[MYSCAN] start(makeKeyAndVisible)");
+ d2myStart();
+ }
+}
+%end
+
+%hook UIViewController
+- (void)viewDidAppear:(BOOL)animated{
+ %orig;
+ if(!gScanStarted){
+ gScanStarted=YES;
+ D2F(@"[MYSCAN] start(viewDidAppear)");
+ d2myStart();
  }
 }
 %end
