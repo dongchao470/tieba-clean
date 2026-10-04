@@ -1153,7 +1153,6 @@ if(full<60){return;}
 if(![gSeen containsObject:@"HDRGEO"]){[gSeen addObject:@"HDRGEO"];d2geo(self,@"hdr",12);}
 (void)d2findTV(self);
 D2F(@"[HDR] keep native full=%.0f",full);
-}
  }@catch(NSException *e){
  D2F(@"[MY1] hdr ex %@",e.name);
  }
