@@ -1130,7 +1130,7 @@ static void d2restorePage(UITableView *tv){
  }
 }
 
-static CGFloat gHdrCutY=0;
+
 
 %hook TBCMyTabHeaderView
 - (void)layoutSubviews {
