@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.6.0 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.2 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -699,7 +699,7 @@ static void d2myPagePass(UIView *tvc){
 static NSArray *d2badWords(void){
  static NSArray *a=nil;
  if(!a){
- a=@[@"免费送",@"240天",@"SVIP",@"sVIP",@"度小满",@"立即获得",@"立即开通",@"新客专享",@"低息借款",@"现金红包",@"大额",@"成为贴吧会员",@"开通会员",@"会员卡",@"游戏专区"];
+ a=@[@"免费送",@"240天",@"SVIP",@"svip",@"sVIP",@"度小满",@"立即获得",@"立即开通",@"新客专享",@"低息借款",@"现金红包",@"大额",@"成为贴吧会员",@"开通会员",@"会员卡",@"游戏专区"];
  }
  return(a);
 }
@@ -712,6 +712,14 @@ static NSString *d2tx2(UIView *v){
  NSString *t=[(UIButton *)v titleForState:UIControlStateNormal];
  if(t.length>0){return(t);}
  }
+ if([v isKindOfClass:[UIImageView class]]){
+ UIImage *im=((UIImageView *)v).image;
+ if(im){return([NSString stringWithFormat:@"<img %@>",im]);}
+ }
+ NSString *al=v.accessibilityLabel;
+ if(al&&al.length>0){return(al);}
+ NSString *avl=v.accessibilityValue;
+ if(avl&&avl.length>0){return(avl);}
  SEL s1=NSSelectorFromString(@"text");
  if([v respondsToSelector:s1]){
  id t=[v performSelector:s1];
@@ -755,6 +763,15 @@ static NSInteger d2sweepEx(UIView *root,UIView *coord,BOOL doHide,CGFloat *outMi
  if(doHide&&v.hidden!=YES){
  v.hidden=YES;
  D2F(@"[MY1] sweep hide cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),r.origin.y,r.size.height,t);
+ UIView *pp=v.superview;
+ if(pp&&pp!=root&&![pp isKindOfClass:[UITableViewCell class]]&&pp.subviews.count<=2){
+ CGFloat ph=pp.frame.size.height;
+ CGFloat vh=v.frame.size.height;
+ if(ph>1.0&&vh>1.0&&ph>=vh*1.15&&ph<vh*4.0&&pp.hidden!=YES){
+ pp.hidden=YES;
+ D2F(@"[MY2] sweep hide parent cls=%@ h=%.0f",NSStringFromClass([pp class]),ph);
+ }
+ }
  }
  }
  NSUInteger i=0;
@@ -797,10 +814,81 @@ static void d2mySweepCells(UITableView *tv){
  CGFloat my=0;
  NSInteger n=d2sweepEx(sv,tv,YES,&my);
  if(n>0){
- d2myOnce([NSString stringWithFormat:@"SW#%@",NSStringFromClass([sv class])],
- [NSString stringWithFormat:@"cell文本命中 cls=%@ n=%d y=%.0f (已隐藏,待按item归零)",NSStringFromClass([sv class]),(int)n,sv.frame.origin.y]);
- sv.hidden=YES;
+ d2myOnce([NSString stringWithFormat:@"SW#%@#%d",NSStringFromClass([sv class]),(int)n],
+ [NSString stringWithFormat:@"cell内命中 cls=%@ n=%d y=%.0f (只藏命中子视图,不整格隐藏)",NSStringFromClass([sv class]),(int)n,sv.frame.origin.y]);
  }
+ }
+}
+
+// ===== v0.8.2:探针扩展(图片名/accessibilityLabel) +定时复扫 +整页结构dump =====
+//证据:0.8.1日志里 SVIP一次未命中,只有"游戏专区/度小满钱包"两个UILabel命中
+//=>免费送240天SVIP不是UILabel(自绘/H5/图片) =>加图片名与accessibility通道 +把整页结构打出来
+static NSInteger gBudget=0;
+
+static void d2dumpTree(UIView *root,UIView *coord,NSString *tag,NSInteger maxDepth){
+ if(!root||!coord){return;}
+ NSMutableArray *st=[NSMutableArray arrayWithObject:root];
+ NSMutableArray *dp=[NSMutableArray arrayWithObject:[NSNumber numberWithInt:0]];
+ NSInteger g=0;
+ while(st.count>0&&g<400){
+ g++;
+ if(gBudget<=0){return;}
+ UIView *v=[st objectAtIndex:0];
+ NSInteger d=[[dp objectAtIndex:0] intValue];
+ [st removeObjectAtIndex:0];
+ [dp removeObjectAtIndex:0];
+ if(d>maxDepth){continue;}
+ gBudget--;
+ CGRect r=[coord convertRect:v.bounds fromView:v];
+ D2F(@"[MY2] %@ d=%d %@ y=%.0f h=%.0f w=%.0f hd=%d txt=%@",tag,(int)d,NSStringFromClass([v class]),r.origin.y,r.size.height,r.size.width,(int)v.hidden,d2tx2(v));
+ NSUInteger i=0;
+ for(i=0;i<v.subviews.count;i++){
+ [st addObject:[v.subviews objectAtIndex:i]];
+ [dp addObject:[NSNumber numberWithInt:(int)(d+1)]];
+ }
+ }
+}
+
+static void d2dumpPage(UITableView *tv,NSString *tag){
+ if(!tv||!tag){return;}
+ NSString *key=[NSString stringWithFormat:@"DUMP#%@",tag];
+ if(!gSeen){gSeen=[NSMutableSet set];}
+ if([gSeen containsObject:key]){return;}
+ [gSeen addObject:key];
+ gBudget=170;
+ D2F(@"[MY2] ==DUMP %@ tvH=%.0f sub=%d vis=%d",tag,tv.contentSize.height,(int)tv.subviews.count,(int)tv.visibleCells.count);
+ UIView *hdr=tv.tableHeaderView;
+ if(hdr){
+ D2F(@"[MY2] ==DUMP %@ header %@ h=%.0f",tag,NSStringFromClass([hdr class]),hdr.frame.size.height);
+ d2dumpTree(hdr,hdr,@"h",4);
+ }
+ NSArray *cs=tv.visibleCells;
+ NSUInteger j=0;
+ for(j=0;j<cs.count;j++){
+ UIView *c=[cs objectAtIndex:j];
+ CGRect r=[tv convertRect:c.bounds fromView:c];
+ D2F(@"[MY2] ==DUMP %@ cell %@ y=%.0f h=%.0f hd=%d",tag,NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden);
+ d2dumpTree(c,tv,@"c",4);
+ }
+ D2F(@"[MY2] ==DUMP %@ end budget=%d",tag,(int)gBudget);
+}
+
+static void d2scheduleResweeps(UITableView *tv){
+ if(!tv){return;}
+ __weak UITableView *wt=tv;
+ CGFloat ds[4]={0.4,1.0,2.0,3.6};
+ NSInteger k=0;
+ for(k=0;k<4;k++){
+ dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(ds[k]*(double)NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+ UITableView *t=wt;
+ if(!t){return;}
+ D2F(@"[MY2] resweep k=%d vis=%d",(int)k,(int)t.visibleCells.count);
+ d2mySweepCells(t);
+ UIView *h=t.tableHeaderView;
+ if(h){[h setNeedsLayout];}
+ if(k==1){d2dumpPage(t,@"P1");}
+ if(k==3){d2dumpPage(t,@"P3");}
+ });
  }
 }
 
@@ -818,6 +906,8 @@ static CGFloat gHdrCutY=0;
  SEL svb=NSSelectorFromString(@"vipBannerView");
  if([self respondsToSelector:svb]){vb=(UIView *)[self performSelector:svb];}
  if(vb&&vb.hidden!=YES){vb.hidden=YES;}
+ UITableView *dpv=d2findTV(self);
+ if(![gSeen containsObject:@"SCHED1"]){[gSeen addObject:@"SCHED1"];d2scheduleResweeps(dpv);d2dumpPage(dpv,@"P0");}
  CGFloat full=self.bounds.size.height;
  if(full<60){return;}
  CGFloat cut=full;
