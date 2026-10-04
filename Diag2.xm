@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.5 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
+// TiebaClean fix v0.8.6 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.5 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.6 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -697,7 +697,7 @@ static void d2myCollapse(UIView *v){
  d++;
  }
  if(top.hidden!=YES){
- if(d2myWl(top)){D2F(@"[MY3] collapse skip-wl cls=%@ h=%.0f",NSStringFromClass([top class]),top.frame.size.height);}
+ if(d2myWl(top)||d2prot(top)){D2F(@"[MY3] collapse skip-wl cls=%@ h=%.0f",NSStringFromClass([top class]),top.frame.size.height);}
  else{
  if(!gHid){gHid=[NSMutableSet set];}
  [gHid addObject:[NSString stringWithFormat:@"%p",top]];
@@ -1003,6 +1003,30 @@ static void d2dumpPage(UITableView *tv,NSString *tag){
  D2F(@"[MY2] ==DUMP %@ end budget=%d",tag,(int)gBudget);
 }
 
+static void d2cardReport(UITableView *tv){
+if(!tv){return;}
+NSArray *cs=tv.visibleCells;
+NSUInteger ci=0;
+for(ci=0;ci<cs.count;ci++){
+UIView *c=[cs objectAtIndex:ci];
+NSString *cn=[[NSStringFromClass([c class]) lowercaseString] copy];
+if([cn rangeOfString:@"function"].location==NSNotFound){continue;}
+CGRect r=[tv convertRect:c.bounds fromView:c];
+NSInteger hid=0;
+NSMutableArray *st=[NSMutableArray arrayWithObject:c];
+NSInteger g=0;
+while(st.count>0&&g<400){
+g++;
+UIView *w=[st objectAtIndex:0];
+[st removeObjectAtIndex:0];
+if(w.hidden){hid++;}
+NSUInteger kk=0;
+for(kk=0;kk<w.subviews.count;kk++){[st addObject:[w.subviews objectAtIndex:kk]];}
+}
+D2F(@"[MY6] card cls=%@ y=%.0f h=%.0f hd=%d hiddenDesc=%d",NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden,(int)hid);
+}
+}
+
 static void d2scheduleResweeps(UITableView *tv){
  if(!tv){return;}
  __weak UITableView *wt=tv;
@@ -1017,6 +1041,7 @@ static void d2scheduleResweeps(UITableView *tv){
  UIView *h=t.tableHeaderView;
  if(h){[h setNeedsLayout];}
  d2restorePage(t);
+ d2cardReport(t);
  if(k==1){d2dumpPage(t,@"P1");}
  if(k==3){d2dumpPage(t,@"P3");}
  });
@@ -1058,7 +1083,7 @@ static void d2restorePage(UITableView *tv){
  if([cn rangeOfString:@"options"].location!=NSNotFound){known=YES;}
  if([cn rangeOfString:@"assist"].location!=NSNotFound){known=YES;}
  if([gHid containsObject:[NSString stringWithFormat:@"%p",v]]){mine=YES;}
- if(!ban&&(mine||known||d2myWlCls(v))&&d2myWl(v)){
+ if(!d2prot(v)&&!ban&&(mine||known||d2myWlCls(v))&&d2myWl(v)){
  v.hidden=NO;
  D2F(@"[MY3] restore cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),v.frame.origin.y,v.frame.size.height,d2tx2(v));
  }
