@@ -819,18 +819,20 @@ static void d2myPagePass(UIView *tvc){
 }
 - (void)layoutSubviews {
  %orig;
+ UIView *cv=(UIView *)self;
+ cv.hidden=YES;
+ d2myCollapse(cv);
  d2myOnce(@"UI#carousel",@"carouselBanner cell hidden+collapse");
- self.hidden=YES;
- d2myCollapse(self);
 }
 %end
 
 %hook TBCMyTabCarouselBannerView
 - (void)layoutSubviews {
  %orig;
- self.hidden=YES;
- self.alpha=0.0;
- d2myCollapse(self);
+ UIView *bv=(UIView *)self;
+ bv.hidden=YES;
+ bv.alpha=0.0;
+ d2myCollapse(bv);
 }
 %end
 
