@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.6 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
+// TiebaClean fix v0.8.7 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.6 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.7 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -1012,18 +1012,18 @@ UIView *c=[cs objectAtIndex:ci];
 NSString *cn=[[NSStringFromClass([c class]) lowercaseString] copy];
 if([cn rangeOfString:@"function"].location==NSNotFound){continue;}
 CGRect r=[tv convertRect:c.bounds fromView:c];
-NSInteger hid=0;
+NSInteger hid=0;NSInteger res=0;NSInteger dl=0;
 NSMutableArray *st=[NSMutableArray arrayWithObject:c];
 NSInteger g=0;
 while(st.count>0&&g<400){
 g++;
 UIView *w=[st objectAtIndex:0];
 [st removeObjectAtIndex:0];
-if(w.hidden){hid++;}
+if(w.hidden){hid++;res++;if(dl<6){dl++;D2F(@"[MY6] hidx card=%@ i=%d cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([c class]),(int)dl,NSStringFromClass([w class]),[c convertRect:w.bounds fromView:w].origin.y,w.frame.size.height,d2tx3(w));}w.hidden=NO;}
 NSUInteger kk=0;
 for(kk=0;kk<w.subviews.count;kk++){[st addObject:[w.subviews objectAtIndex:kk]];}
 }
-D2F(@"[MY6] card cls=%@ y=%.0f h=%.0f hd=%d hiddenDesc=%d",NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden,(int)hid);
+D2F(@"[MY6] card cls=%@ y=%.0f h=%.0f hd=%d hiddenDesc=%d rescued=%d",NSStringFromClass([c class]),r.origin.y,r.size.height,(int)c.hidden,(int)hid,(int)res);
 }
 }
 
