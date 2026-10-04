@@ -554,6 +554,15 @@ static void d2restorePage(UITableView *tv);
 
 static NSMutableSet *gDbg4=nil;
 
+static BOOL d2myWl(UIView *v);
+
+static BOOL d2clsHas(UIView *v,NSString *tok){
+ if(!v||!tok||tok.length<=0){return(NO);}
+ NSString *cn=[[NSStringFromClass([v class]) lowercaseString] copy];
+ if([cn rangeOfString:tok].location!=NSNotFound){return(YES);}
+ return(NO);
+}
+
 static NSString *d2tx3(UIView *v){
  if(!v){return(@"");}
  NSMutableString *o=[NSMutableString string];
@@ -875,7 +884,7 @@ static NSInteger d2sweepEx(UIView *root,UIView *coord,BOOL doHide,CGFloat *outMi
  }
  }
  }
- if([[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"tools"].location!=NSNotFound||[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"options"].location!=NSNotFound){d2dbg4(v,@"tile");}
+ if(d2clsHas(v,@"tools")||d2clsHas(v,@"options")){d2dbg4(v,@"tile");}
  NSUInteger i=0;
  for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
  }
@@ -1035,7 +1044,7 @@ static void d2restorePage(UITableView *tv){
  D2F(@"[MY3] restore cls=%@ y=%.0f h=%.0f txt=%@",NSStringFromClass([v class]),v.frame.origin.y,v.frame.size.height,d2tx2(v));
  }
  }
- if([[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"tools"].location!=NSNotFound||[[NSStringFromClass([v class]) lowercaseString] rangeOfString:@"options"].location!=NSNotFound){d2dbg4(v,@"tile");}
+ if(d2clsHas(v,@"tools")||d2clsHas(v,@"options")){d2dbg4(v,@"tile");}
  NSUInteger i=0;
  for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
  }
