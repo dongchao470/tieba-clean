@@ -329,7 +329,7 @@ for(k=0;k<[v.subviews count];k++){[q addObject:[v.subviews objectAtIndex:k]];[d 
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.9 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.10 off=%d pid=%d path=%@########", (int)D2Off(), getpid(), gPath);
  if(!D2Off()){D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];}
@@ -1151,34 +1151,7 @@ NSInteger n=d2sweepEx(self,self,YES,&my);
  CGFloat full=self.bounds.size.height;
 if(full<60){return;}
 if(![gSeen containsObject:@"HDRGEO"]){[gSeen addObject:@"HDRGEO"];d2geo(self,@"hdr",12);}
-CGFloat nb=0;
-if(vb&&vb.superview){
-CGRect br=[self convertRect:vb.bounds fromView:vb];
-CGFloat bh=br.size.height;
-if(bh>=8&&bh<=full*0.55&&br.origin.y>full*0.25&&br.origin.y<full-2){
-nb=bh;
-NSInteger mv=0;
-NSUInteger si=0;
-for(si=0;si<self.subviews.count;si++){
-UIView *sv=[self.subviews objectAtIndex:si];
-if(sv==vb){continue;}
-CGRect sf=sv.frame;
-if(sf.origin.y>=br.origin.y+nb-1.0){sf.origin.y-=nb;sv.frame=sf;mv++;}
-}
-D2F(@"[HDR] reflow banner y=%.0f h=%.0f moved=%d",br.origin.y,bh,(int)mv);
-}
-}
-CGFloat want=full-nb;
-if(want<120&&full>=150){want=120;}
-if(want>full){want=full;}
-if(fabs(full-want)>1.0){
-CGRect f=self.frame;
-f.size.height=want;
-self.frame=f;
-UITableView *tv=d2findTV(self);
-if(tv&&tv.tableHeaderView==self){[tv setTableHeaderView:self];}
-D2F(@"[HDR] header %.0f -> %.0f",full,want);
-}else{
+(void)d2findTV(self);
 D2F(@"[HDR] keep native full=%.0f",full);
 }
  }@catch(NSException *e){
