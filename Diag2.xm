@@ -811,7 +811,6 @@ static NSInteger d2sweepEx(UIView *root,UIView *coord,BOOL doHide,CGFloat *outMi
  }
  }
  }
- }
  NSUInteger i=0;
  for(i=0;i<v.subviews.count;i++){[st addObject:[v.subviews objectAtIndex:i]];}
  }
