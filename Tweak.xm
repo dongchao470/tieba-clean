@@ -40,6 +40,16 @@
 - (void)configWithFeedSource;
 - (void)configMultiTabItem:(id)item;
 - (id)startLiveButton;
+- (id)createStartLiveButton;
+- (void)setStartLiveButton:(id)button;
+- (void)setupWithTabItems:(id)items tab:(id)tab;
+@end
+
+//顶栏横向 tab控件：持有 items数组，逐项计算 frame（layoutTabItemWithItem:frame:idx:）
+@interface BLPMultiTabBar : UIView
+- (id)items;
+- (void)setItems:(id)items;
+- (CGRect)layoutTabItemWithItem:(id)item frame:(CGRect)frame idx:(unsigned long long)idx;
 @end
 
 @interface TBCFeedAdFilter : NSObject
@@ -75,6 +85,24 @@ static BOOL TBCIsRemovedTabText(id text) {
  if ([s isEqualToString:@"有料"]) return YES;
  if ([s isEqualToString:@"直播"]) return YES;
  return NO;
+}
+
+//一个 tab条目是否要被整个拿掉（item级判定：title在 item或 view上都认）
+static BOOL TBCItemIsRemovedTab(id item) {
+ if (!item) return NO;
+ if (TBCIsRemovedTabText(TBCCall(item, @selector(title)))) return YES;
+ id v = TBCCall(item, @selector(view));
+ if ([v isKindOfClass:[UIView class]] && TBCIsRemovedTabText(TBCCall(v, @selector(text)))) return YES;
+ return NO;
+}
+
+//把「直播」按钮收成0尺寸，避免隐藏后仍占位
+static void TBCKillLiveButton(id btn) {
+ if (![btn isKindOfClass:[UIView class]]) return;
+ UIView *v = (UIView *)btn;
+ v.hidden = YES;
+ v.alpha =0.0;
+ v.frame = CGRectMake(v.frame.origin.x, v.frame.origin.y,0.0,0.0);
 }
 
 //广告类视图的类名兜底判定（用于未知具体子类的情况）
@@ -121,11 +149,7 @@ static int TBCHideRemovedTabsInView(UIView *view, int depth) {
 
 static void TBCApplyTabFilter(UIView *bar) {
  if (!bar) return;
- id live = TBCCall(bar, @selector(startLiveButton));
- if ([live isKindOfClass:[UIView class]]) {
- ((UIView *)live).hidden = YES;
- ((UIView *)live).alpha =0.0;
- }
+ TBCKillLiveButton(TBCCall(bar, @selector(startLiveButton)));
  int n = TBCHideRemovedTabsInView(bar,0);
  if (n >0) TBClog(@"hided %d tab entry(ies)", n);
  //顶栏是异步数据驱动的，再补一刀
@@ -145,6 +169,21 @@ static void TBCApplyTabFilter(UIView *bar) {
  self.hidden = YES;
  self.alpha =0.0;
  }
+}
+
+//零宽/隐藏后不吃点击，免得空位误触
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+ if (self.hidden || self.frame.size.width <=0.0) return nil;
+ return %orig;
+}
+
+%end
+
+%hook BLPMultiTabItem
+
+- (BOOL)isDisplayed {
+ if (TBCItemIsRemovedTab(self)) return NO;
+ return %orig;
 }
 
 %end
@@ -168,13 +207,47 @@ static void TBCApplyTabFilter(UIView *bar) {
 
 - (void)configMultiTabItem:(id)item {
  %orig;
- if (item) {
- if (TBCIsRemovedTabText(TBCCall(item, @selector(title)))) {
+ if (TBCItemIsRemovedTab(item)) {
  id v = TBCCall(item, @selector(view));
  if ([v isKindOfClass:[UIView class]]) ((UIView *)v).hidden = YES;
  }
- }
  TBCApplyTabFilter(self);
+}
+
+//「直播」入口是在这里现造的，造完直接收成0尺寸
+- (id)createStartLiveButton {
+ id btn = %orig;
+ TBCKillLiveButton(btn);
+ return btn;
+}
+
+- (void)setStartLiveButton:(id)button {
+ %orig;
+ TBCKillLiveButton(button);
+}
+
+- (void)setupWithTabItems:(id)items tab:(id)tab {
+ %orig;
+ TBCApplyTabFilter(self);
+}
+
+%end
+
+#pragma mark -1b.横向 tab控件：被干掉的条目不给宽度（消除空位）
+
+%hook BLPMultiTabBar
+
+- (CGRect)layoutTabItemWithItem:(id)item frame:(CGRect)frame idx:(unsigned long long)idx {
+ if (TBCItemIsRemovedTab(item)) {
+ id v = TBCCall(item, @selector(view));
+ if ([v isKindOfClass:[UIView class]]) {
+ ((UIView *)v).hidden = YES;
+ ((UIView *)v).alpha =0.0;
+ }
+ //宽给0、起点保持不变：后面的 tab顺势左移，空位消失
+ return CGRectMake(frame.origin.x, frame.origin.y,0.0, frame.size.height);
+ }
+ return %orig;
 }
 
 %end
@@ -247,5 +320,5 @@ static void TBCApplyTabFilter(UIView *bar) {
 #pragma mark -入口
 
 %ctor {
- TBClog(@"loaded v0.1.0 (bundle=%s)", [NSBundle.mainBundle.bundleIdentifier UTF8String]);
+ TBClog(@"loaded v0.2.0 (bundle=%s)", [NSBundle.mainBundle.bundleIdentifier UTF8String]);
 }
