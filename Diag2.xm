@@ -550,6 +550,7 @@ static void d2myOnce(NSString *k,NSString *msg){
 //把"只装着这个子视图"的空壳一路藏掉(最多4层),遇cell/table/表头就停
 static NSString *d2tx2(UIView *v);
 static NSMutableSet *gHid=nil;
+static void d2restorePage(UITableView *tv);
 
 static BOOL d2myWlTx(NSString *t){
  if(!t||t.length<=0){return(NO);}
