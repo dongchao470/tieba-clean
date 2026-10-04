@@ -1,4 +1,4 @@
-// TiebaClean fix v0.8.4 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
+// TiebaClean fix v0.8.5 - my-page: text sweep(免费送240天SVIP) + header cut(消空位) + ban Namoaixud + launch ad + tab/ad removal
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
@@ -312,7 +312,7 @@ static void D2Verify(NSString *tag) {
 %ctor {
  @autoreleasepool {
  D2Init();
- D2F(@"######## TiebaClean fix v0.8.4 pid=%d path=%@########", getpid(), gPath);
+ D2F(@"######## TiebaClean fix v0.8.5 pid=%d path=%@########", getpid(), gPath);
  D2Runner2 *r = [D2Runner2 new];
  [NSTimer scheduledTimerWithTimeInterval:6.0 target:r selector:@selector(v1) userInfo:nil repeats:NO];
  [NSTimer scheduledTimerWithTimeInterval:14.0 target:r selector:@selector(v2) userInfo:nil repeats:NO];
@@ -591,6 +591,24 @@ static NSString *d2tx3(UIView *v){
  return(o);
 }
 
+static BOOL d2prot(UIView *v){
+ if(!v){return(NO);}
+ UIView *p=v;
+ NSInteger i=0;
+ while(p&&i<8){
+ NSString *cn=[[NSStringFromClass([p class]) lowercaseString] copy];
+ if([cn rangeOfString:@"commonfunction"].location!=NSNotFound){return(YES);}
+ if([cn rangeOfString:@"commonfounction"].location!=NSNotFound){return(YES);}
+ if([cn rangeOfString:@"assistfunction"].location!=NSNotFound){return(YES);}
+ if([cn rangeOfString:@"toolsoptions"].location!=NSNotFound){return(YES);}
+ if([cn rangeOfString:@"iconlabel"].location!=NSNotFound){return(YES);}
+ if([cn rangeOfString:@"communityassets"].location!=NSNotFound){return(YES);}
+ p=p.superview;
+ i++;
+ }
+ return(NO);
+}
+
 static BOOL d2myWlCls(UIView *v){
  if(!v){return(NO);}
  static NSArray *cw=nil;
@@ -636,6 +654,7 @@ static BOOL d2myWlTx(NSString *t){
 
 static BOOL d2myWl(UIView *v){
  if(!v){return(NO);}
+ if(d2prot(v)){return(YES);}
  if(d2myWlTx(d2tx3(v))){return(YES);}
  if(d2myWlCls(v)){return(YES);}
  NSMutableArray *st=[NSMutableArray arrayWithObject:v];
@@ -1077,8 +1096,9 @@ static CGFloat gHdrCutY=0;
  }
  if(my<1e8&&my>full*0.35&&my<full-4){if(my<cut){cut=my;}}
  if(cut<full-4){gHdrCutY=cut;}
+ if(gHdrCutY<60){gHdrCutY=full-136;}
  CGFloat want=(gHdrCutY>59)?gHdrCutY:full;
- if(want<60){want=60;}
+ if(want<140&&full>=150){want=140;}
  if(want>full){want=full;}
  if(fabs(full-want)>1.0){
  CGRect f=self.frame;
