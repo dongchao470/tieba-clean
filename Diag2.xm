@@ -506,6 +506,20 @@ static void d2myStart(void){
 - (UIView *)headerView;
 @end
 
+//必须给出父类,否则Logos只生成@class前置声明,self.hidden/self转UIView都会编译失败
+@interface TBCMyTabCommerceCell : UITableViewCell
+- (void)setupUI;
+@end
+
+@interface TBCMyTabAmusementCell : UITableViewCell
+- (void)setupUI;
+@end
+
+@interface TBCMyTabVipBannerView : UIView
+- (void)bindData:(id)d;
+- (void)setupUI;
+@end
+
 static BOOL gMyReloaded=NO;
 
 static BOOL d2myBanName(NSString *cn){
