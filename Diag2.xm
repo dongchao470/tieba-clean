@@ -4,6 +4,7 @@
 #import <objc/runtime.h>
 #import <objc/message.h>
 #import <unistd.h>
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
 
 static NSString *gPath = nil;
 static NSMutableString *gBuf = nil;
@@ -518,6 +519,11 @@ static void d2myStart(void){
 @interface TBCMyTabVipBannerView : UIView
 - (void)bindData:(id)d;
 - (void)setupUI;
+@end
+
+@interface TBCMyTabCellFactory : NSObject
++ (Class)fetchMyTabCellClass:(id)item;
++ (double)cellHeightForCellItem:(id)item tableView:(id)tv;
 @end
 
 static BOOL gMyReloaded=NO;
